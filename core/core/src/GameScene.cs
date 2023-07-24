@@ -9,9 +9,9 @@ namespace core
 {
     public class GameScene
     {
-        public imsimgame _game;
+        public martgame _game;
 
-        public void Init(imsimgame game)
+        public void Init(martgame game)
         {
             _game = game;
 

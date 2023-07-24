@@ -8,10 +8,10 @@ namespace prog
 {
     public static class Program
     {
-        public static imsimgame Game;
+        public static martgame Game;
         public static void Main(string[] args)
         {
-            Game = new imsimgame();
+            Game = new martgame();
             Game.Run();
         }
 

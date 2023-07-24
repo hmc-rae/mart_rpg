@@ -235,7 +235,7 @@ namespace core.src
         public Vector2 screenPos;
         public Vector2 dimensions;
 
-        private imsimgame _game;
+        private martgame _game;
         private GraphicsDevice _graphics;
         private Texture2D _rect;
 

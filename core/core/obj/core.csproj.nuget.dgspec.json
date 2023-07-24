@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "D:\\Files\\Programming\\Projects\\imsim\\core\\core\\core.csproj": {}
+    "D:\\Files\\Programming\\Projects\\mart_rpg\\core\\core\\core.csproj": {}
   },
   "projects": {
-    "D:\\Files\\Programming\\Projects\\imsim\\core\\core\\core.csproj": {
+    "D:\\Files\\Programming\\Projects\\mart_rpg\\core\\core\\core.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "D:\\Files\\Programming\\Projects\\imsim\\core\\core\\core.csproj",
+        "projectUniqueName": "D:\\Files\\Programming\\Projects\\mart_rpg\\core\\core\\core.csproj",
         "projectName": "core",
-        "projectPath": "D:\\Files\\Programming\\Projects\\imsim\\core\\core\\core.csproj",
+        "projectPath": "D:\\Files\\Programming\\Projects\\mart_rpg\\core\\core\\core.csproj",
         "packagesPath": "C:\\Users\\Harris\\.nuget\\packages\\",
-        "outputPath": "D:\\Files\\Programming\\Projects\\imsim\\core\\core\\obj\\",
+        "outputPath": "D:\\Files\\Programming\\Projects\\mart_rpg\\core\\core\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\Harris\\AppData\\Roaming\\NuGet\\NuGet.Config",

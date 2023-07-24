@@ -6,7 +6,7 @@ using System;
 
 namespace core
 {
-    public class imsimgame : Game
+    public class martgame : Game
     {
         private GraphicsDeviceManager _graphics;
         internal SpriteBatch _spriteBatch;
@@ -29,7 +29,7 @@ namespace core
         public MouseState PreviousMouse => _pms;
         public MouseState CurrentMouse => _cms;
 
-        public imsimgame()
+        public martgame()
         {
             _graphics = new GraphicsDeviceManager(this);
             _def = DepthStencilState.Default;

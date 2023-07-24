@@ -33,9 +33,9 @@ namespace core
 
         public bool IsVisible;
 
-        private imsimgame _game;
+        private martgame _game;
         private const int listcap = 16;
-        public void Initialize(imsimgame game)
+        public void Initialize(martgame game)
         {
             _game = game;
             _graphics = _game.GraphicsDevice;
