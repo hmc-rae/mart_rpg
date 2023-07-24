@@ -1,0 +1,322 @@
+[
+  {
+    "key_enum": 32,
+    "key_lc": " ",
+    "key_uc": " "
+  },
+  {
+    "key_enum": 48,
+    "key_lc": "0",
+    "key_uc": ")"
+  },
+  {
+    "key_enum": 49,
+    "key_lc": "1",
+    "key_uc": "!"
+  },
+  {
+    "key_enum": 50,
+    "key_lc": "2",
+    "key_uc": "@"
+  },
+  {
+    "key_enum": 51,
+    "key_lc": "3",
+    "key_uc": "#"
+  },
+  {
+    "key_enum": 52,
+    "key_lc": "4",
+    "key_uc": "$"
+  },
+  {
+    "key_enum": 53,
+    "key_lc": "5",
+    "key_uc": "%"
+  },
+  {
+    "key_enum": 54,
+    "key_lc": "6",
+    "key_uc": "^"
+  },
+  {
+    "key_enum": 55,
+    "key_lc": "7",
+    "key_uc": "&"
+  },
+  {
+    "key_enum": 56,
+    "key_lc": "8",
+    "key_uc": "*"
+  },
+  {
+    "key_enum": 57,
+    "key_lc": "9",
+    "key_uc": "("
+  },
+  {
+    "key_enum": 65,
+    "key_lc": "a",
+    "key_uc": "A"
+  },
+  {
+    "key_enum": 66,
+    "key_lc": "b",
+    "key_uc": "B"
+  },
+  {
+    "key_enum": 67,
+    "key_lc": "c",
+    "key_uc": "C"
+  },
+  {
+    "key_enum": 68,
+    "key_lc": "d",
+    "key_uc": "D"
+  },
+  {
+    "key_enum": 69,
+    "key_lc": "e",
+    "key_uc": "E"
+  },
+  {
+    "key_enum": 70,
+    "key_lc": "f",
+    "key_uc": "F"
+  },
+  {
+    "key_enum": 71,
+    "key_lc": "g",
+    "key_uc": "G"
+  },
+  {
+    "key_enum": 72,
+    "key_lc": "h",
+    "key_uc": "H"
+  },
+  {
+    "key_enum": 73,
+    "key_lc": "i",
+    "key_uc": "I"
+  },
+  {
+    "key_enum": 74,
+    "key_lc": "j",
+    "key_uc": "J"
+  },
+  {
+    "key_enum": 75,
+    "key_lc": "k",
+    "key_uc": "K"
+  },
+  {
+    "key_enum": 76,
+    "key_lc": "l",
+    "key_uc": "L"
+  },
+  {
+    "key_enum": 77,
+    "key_lc": "m",
+    "key_uc": "M"
+  },
+  {
+    "key_enum": 78,
+    "key_lc": "n",
+    "key_uc": "N"
+  },
+  {
+    "key_enum": 79,
+    "key_lc": "o",
+    "key_uc": "O"
+  },
+  {
+    "key_enum": 80,
+    "key_lc": "p",
+    "key_uc": "P"
+  },
+  {
+    "key_enum": 81,
+    "key_lc": "q",
+    "key_uc": "Q"
+  },
+  {
+    "key_enum": 82,
+    "key_lc": "r",
+    "key_uc": "R"
+  },
+  {
+    "key_enum": 83,
+    "key_lc": "s",
+    "key_uc": "S"
+  },
+  {
+    "key_enum": 84,
+    "key_lc": "t",
+    "key_uc": "T"
+  },
+  {
+    "key_enum": 85,
+    "key_lc": "u",
+    "key_uc": "U"
+  },
+  {
+    "key_enum": 86,
+    "key_lc": "v",
+    "key_uc": "V"
+  },
+  {
+    "key_enum": 87,
+    "key_lc": "w",
+    "key_uc": "W"
+  },
+  {
+    "key_enum": 88,
+    "key_lc": "x",
+    "key_uc": "X"
+  },
+  {
+    "key_enum": 89,
+    "key_lc": "y",
+    "key_uc": "Y"
+  },
+  {
+    "key_enum": 90,
+    "key_lc": "z",
+    "key_uc": "Z"
+  },
+  {
+    "key_enum": 96,
+    "key_lc": "0",
+    "key_uc": "0"
+  },
+  {
+    "key_enum": 97,
+    "key_lc": "1",
+    "key_uc": "1"
+  },
+  {
+    "key_enum": 98,
+    "key_lc": "2",
+    "key_uc": "2"
+  },
+  {
+    "key_enum": 99,
+    "key_lc": "3",
+    "key_uc": "3"
+  },
+  {
+    "key_enum": 100,
+    "key_lc": "4",
+    "key_uc": "4"
+  },
+  {
+    "key_enum": 101,
+    "key_lc": "5",
+    "key_uc": "5"
+  },
+  {
+    "key_enum": 102,
+    "key_lc": "6",
+    "key_uc": "6"
+  },
+  {
+    "key_enum": 103,
+    "key_lc": "7",
+    "key_uc": "7"
+  },
+  {
+    "key_enum": 104,
+    "key_lc": "8",
+    "key_uc": "8"
+  },
+  {
+    "key_enum": 105,
+    "key_lc": "9",
+    "key_uc": "9"
+  },
+  {
+    "key_enum": 106,
+    "key_lc": "*",
+    "key_uc": "*"
+  },
+  {
+    "key_enum": 107,
+    "key_lc": "+",
+    "key_uc": "+"
+  },
+  {
+    "key_enum": 108,
+    "key_lc": "/",
+    "key_uc": "/"
+  },
+  {
+    "key_enum": 109,
+    "key_lc": "-",
+    "key_uc": "-"
+  },
+  {
+    "key_enum": 110,
+    "key_lc": ".",
+    "key_uc": "."
+  },
+  {
+    "key_enum": 111,
+    "key_lc": "/",
+    "key_uc": "/"
+  },
+  {
+    "key_enum": 186,
+    "key_lc": ";",
+    "key_uc": ":"
+  },
+  {
+    "key_enum": 187,
+    "key_lc": "=",
+    "key_uc": "+"
+  },
+  {
+    "key_enum": 188,
+    "key_lc": ",",
+    "key_uc": "<"
+  },
+  {
+    "key_enum": 189,
+    "key_lc": "-",
+    "key_uc": "_"
+  },
+  {
+    "key_enum": 190,
+    "key_lc": ".",
+    "key_uc": ">"
+  },
+  {
+    "key_enum": 191,
+    "key_lc": "/",
+    "key_uc": "?"
+  },
+  {
+    "key_enum": 192,
+    "key_lc": "`",
+    "key_uc": "~"
+  },
+  {
+    "key_enum": 219,
+    "key_lc": "[",
+    "key_uc": "{"
+  },
+  {
+    "key_enum": 221,
+    "key_lc": "]",
+    "key_uc": "}"
+  },
+  {
+    "key_enum": 222,
+    "key_lc": "'",
+    "key_uc": "\""
+  },
+  {
+    "key_enum": 226,
+    "key_lc": "\\",
+    "key_uc": "|"
+  }
+]

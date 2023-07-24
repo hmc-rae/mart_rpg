@@ -1,0 +1,4 @@
+Source File,Dest File,Processor Type,Content Type,Source File Size,Dest File Size,Build Seconds
+"D:/Files/Programming/Projects/imsim/core/core/Content/Fonts/Arial16.spritefont","D:/Files/Programming/Projects/imsim/core/core/Content/bin/Windows/Content/Fonts/Arial16.xnb","FontDescriptionProcessor","SpriteFontContent",2068,37919,0.1363235
+"D:/Files/Programming/Projects/imsim/core/core/Content/Fonts/Arial25.spritefont","D:/Files/Programming/Projects/imsim/core/core/Content/bin/Windows/Content/Fonts/Arial25.xnb","FontDescriptionProcessor","SpriteFontContent",2068,70687,0.023786
+"D:/Files/Programming/Projects/imsim/core/core/Content/Fonts/Arial32.spritefont","D:/Files/Programming/Projects/imsim/core/core/Content/bin/Windows/Content/Fonts/Arial32.xnb","FontDescriptionProcessor","SpriteFontContent",2068,70687,0.0110134
