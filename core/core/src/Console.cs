@@ -10,6 +10,7 @@ using System.Text.Json.Serialization;
 using Newtonsoft.Json;
 using System.IO;
 using System.Collections.Generic;
+using prog;
 
 namespace core
 {
@@ -41,12 +42,12 @@ namespace core
             _graphics = _game.GraphicsDevice;
             _def = new DepthStencilState() { DepthBufferEnable = true };
             _sprites = _game._spriteBatch;
-            _render = new RenderTarget2D(_graphics, _graphics.PresentationParameters.BackBufferWidth, _graphics.PresentationParameters.BackBufferHeight/2, true, _graphics.PresentationParameters.BackBufferFormat, DepthFormat.Depth24);
-            _rect = new Texture2D(_graphics, _graphics.PresentationParameters.BackBufferWidth, 50);
+            _render = new RenderTarget2D(_graphics, (int)Program.InternalScreen.X, (int)Program.InternalScreen.Y/2, true, _graphics.PresentationParameters.BackBufferFormat, DepthFormat.Depth24);
+            _rect = new Texture2D(_graphics, (int)Program.InternalScreen.X, 50);
 
-            _cull = new Rectangle(0, 0, _graphics.PresentationParameters.BackBufferWidth, _graphics.PresentationParameters.BackBufferHeight / 2);
+            _cull = new Rectangle(0, 0, (int)Program.InternalScreen.X, (int)Program.InternalScreen.Y / 2);
 
-            Color[] data = new Color[50 * _graphics.PresentationParameters.BackBufferWidth];
+            Color[] data = new Color[50 * (int)Program.InternalScreen.X];
             for (int i = 0; i < data.Length; i++) data[i] = Color.Gray;
 
             _rect.SetData(data);
@@ -201,19 +202,20 @@ namespace core
         {
             if (!IsVisible) return;
 
-            bool shift = _game.CurKey.IsKeyDown(Keys.LeftShift) || _game.CurKey.IsKeyDown(Keys.RightShift);
+            bool shift = Input.IsKeyDown(Keys.LeftShift) || Input.IsKeyDown(Keys.RightShift);
             for (int i = 0; i < 256; i++)
             {
                 if (!Enum.IsDefined(typeof(Keys), i)) continue;
-                if (_game.KeyFall((Keys)i))
+
+                if (Input.IsKeyPressed((Keys)i))
                 {
-                    char ret = InputInterp((Keys)i, shift);
+                    char ret = Input.GetChar((Keys)i, shift);
                     if (ret != 0)
                         curString += ret;
                 }
             }
 
-            if (_game.KeyFall(Keys.Enter))
+            if (Input.IsKeyPressed(Keys.Enter))
             {
                 //Push curstring and call thing to it
                 PushString(curString);
@@ -222,7 +224,7 @@ namespace core
 
             }
 
-            if (_game.CurKey.IsKeyDown(Keys.Back))
+            if (Input.IsKeyDown(Keys.Back))
             {
                 if (curString.Length > 0 && backcooldown <= 0)
                 {
@@ -288,85 +290,6 @@ namespace core
             _sprites.Draw(_render, _anchorpos, _cull, Color.White);
 
             _sprites.End();
-        }
-
-        public static char InputInterp(Keys key, bool shift)
-        {
-            
-            if (key_reg == null)
-                init_key_reg();
-
-            for (int i = 0; i < key_reg.Length; i++)
-            {
-                if (key_reg[i].key_enum == (int)key)
-                {
-                    if (shift) return key_reg[i].key_uc;
-                    return key_reg[i].key_lc;
-                }
-            }
-
-            return (char)0;
-        }
-        private static key_reg_entry[] key_reg;
-        private static void init_key_reg()
-        {
-            if (!File.Exists($"{Directory.GetCurrentDirectory()}\\chars.json"))
-            {
-                key_reg = new key_reg_entry[0];
-                return;
-            }
-            string file = File.ReadAllText($"{Directory.GetCurrentDirectory()}\\chars.json");
-            key_reg = JsonConvert.DeserializeObject<key_reg_entry[]>(file);
-        }
-        private static void key_reg_calibrate()
-        {
-            key_reg = new key_reg_entry[256];
-
-            int count = 0;
-            for (int i = 0; i < 256; i++)
-            {
-                if (!Enum.IsDefined(typeof(Keys), i))
-                    continue;
-                System.Console.WriteLine($"\n{(Keys)i}\t(lowercase / uppercase)");
-                string inp = System.Console.ReadLine();
-                if (inp.Equals("")) continue;
-                if (inp.Equals("back"))
-                {
-                    i -= 2;
-                    count--;
-                    continue;
-                }
-                char[] chars = inp.ToCharArray();
-
-                char a = chars[0];
-                char b = chars[1];
-
-                key_reg[count] = new key_reg_entry();
-
-                key_reg[count].key_enum = i;
-                key_reg[count].key_lc = a;
-                key_reg[count].key_uc = b;
-
-                System.Console.WriteLine($"{(Keys)i} => (lc){a} (uc){b}");
-                count++;
-            }
-
-            key_reg_entry[] temp = new key_reg_entry[count];
-            for (int i = 0; i < count; i++)
-            {
-                temp[i] = key_reg[i];
-            }
-
-            string serialize = JsonConvert.SerializeObject(temp);
-
-            System.Console.Clear();
-            System.Console.WriteLine(serialize);
-        }
-        public class key_reg_entry
-        {
-            public int key_enum;
-            public char key_lc;
-            public char key_uc;
         }
     }
 

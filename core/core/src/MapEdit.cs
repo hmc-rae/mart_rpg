@@ -276,7 +276,7 @@ namespace core.src
 
         public void Poll()
         {
-            Vector2 msps = _game.CurrentMouse.Position.ToVector2() - offset;
+            Vector2 msps = Input.GetMousePosition() - offset;
             msps *= multscale;
 
             msps = msps - screenPos;
@@ -287,7 +287,7 @@ namespace core.src
                 case ButtonMode.Toggle:
                     if (!insideMouse) break;
 
-                    if (_game.CurrentMouse.LeftButton == ButtonState.Pressed && _game.PreviousMouse.LeftButton == ButtonState.Released)
+                    if (Input.IsMousePressed(Input.MouseButton.LeftMouse))
                     {
                         bdown = !bdown;
                     } 
@@ -302,14 +302,14 @@ namespace core.src
 
                     if (!ButtonDown)
                     {
-                        if (_game.CurrentMouse.LeftButton == ButtonState.Pressed && _game.PreviousMouse.LeftButton == ButtonState.Released)
+                        if (Input.IsMousePressed(Input.MouseButton.LeftMouse))
                         {
                             bdown = true;
                         }
                     }
                     else
                     {
-                        if (_game.CurrentMouse.LeftButton != ButtonState.Pressed)
+                        if (!Input.IsMousePressed(Input.MouseButton.LeftMouse))
                         {
                             bdown = false;
                         }
@@ -320,12 +320,12 @@ namespace core.src
                 case ButtonMode.Attend:
                     if (!insideMouse)
                     {
-                        if (_game.CurrentMouse.LeftButton == ButtonState.Pressed && _game.PreviousMouse.LeftButton == ButtonState.Released)
+                        if (Input.IsMousePressed(Input.MouseButton.LeftMouse))
                             bdown = false;
                     }
                     else 
                     {
-                        if (_game.CurrentMouse.LeftButton == ButtonState.Pressed && _game.PreviousMouse.LeftButton == ButtonState.Released)
+                        if (Input.IsMousePressed(Input.MouseButton.LeftMouse))
                             bdown = true;
                     }
                     break;
@@ -401,9 +401,7 @@ namespace core.src
 
             if (!_button.ButtonDown) return;
 
-            int scroll = Program.Game.CurrentMouse.ScrollWheelValue - Program.Game.PreviousMouse.ScrollWheelValue;
-            if (scroll > 0) scroll = 1;
-            if (scroll < 0) scroll = -1;
+            int scroll = Input.GetMouseWheelDeltaNormal();
 
             scroll = -scroll;
             //if (scroll != 0) System.Console.WriteLine($"Scroll: {scroll}");
@@ -411,8 +409,8 @@ namespace core.src
             if (scrolledOffset >= viewedList.Count - pageSize) scrolledOffset = (viewedList.Count - pageSize) - 1;
             if (scrolledOffset < 0) scrolledOffset = 0;
 
-            bool mdown = Program.Game.CurrentMouse.LeftButton == ButtonState.Pressed && Program.Game.PreviousMouse.LeftButton == ButtonState.Released;
-            Vector2 pos = Program.Game.CurrentMouse.Position.ToVector2() - position;
+            bool mdown = Input.IsMousePressed(Input.MouseButton.LeftMouse);
+            Vector2 pos = Input.GetMousePosition() - position;
 
             if (mdown && pos.X <= size.X)
             {
@@ -533,10 +531,10 @@ namespace core.src
             _sprites = parent._game._spriteBatch;
 
             brushes = new List<Brush>();
-            Vector2 pos = new Vector2(_graphics.PresentationParameters.BackBufferHeight, 32);
-            pos.X += ((_graphics.PresentationParameters.BackBufferWidth - _graphics.PresentationParameters.BackBufferHeight) / 3f) * 2;
+            Vector2 pos = new Vector2(Program.InternalScreen.Y, 32);
+            pos.X += ((Program.InternalScreen.X - Program.InternalScreen.Y) / 3f) * 2;
 
-            Vector2 size = new Vector2((_graphics.PresentationParameters.BackBufferWidth - _graphics.PresentationParameters.BackBufferHeight) / 3f, _graphics.PresentationParameters.BackBufferHeight);
+            Vector2 size = new Vector2((Program.InternalScreen.X - Program.InternalScreen.Y) / 3f, Program.InternalScreen.Y);
             brushViewer = new ListViewer<Brush>(brushes, 32, pos, size, _content);
 
             pos.Y = 0;
@@ -562,7 +560,7 @@ namespace core.src
 
             if (button.ButtonDown)
             {
-                if (Program.Game.CurrentKeyboard.IsKeyDown(Keys.N) && Program.Game.PreviousKeyboard.IsKeyUp(Keys.N)) //generate fresh cuboid brush
+                if (Input.IsKeyPressed(Keys.N)) //generate fresh cuboid brush
                 {
                     VertexModel temp = VertexModel.CreateGeneric(_graphics);
                     Brush brush = new Brush();
@@ -712,11 +710,11 @@ namespace core.src
             _targetID = -1;
 
             windows = new PerspectiveViewerWindow[4];
-            Vector2 size = new Vector2(_graphics.PresentationParameters.BackBufferHeight / 2, _graphics.PresentationParameters.BackBufferHeight / 2);
+            Vector2 size = new Vector2(Program.InternalScreen.Y / 2f, Program.InternalScreen.Y / 2f);
             for (int i = 0; i < windows.Length; i++)
             {
                 Vector2 temp = new Vector2(i % 2, i / 2);
-                temp *= _graphics.PresentationParameters.BackBufferHeight / 2;
+                temp *= Program.InternalScreen.Y / 2;
 
                 windows[i] = new PerspectiveViewerWindow(_parent, i, temp, size);
             }
@@ -803,21 +801,19 @@ namespace core.src
         }
         public virtual void OrthoProcess(PerspectiveViewerWindow window, WindowContext context) 
         {
-            Vector3 Y = ((Program.Game.CurrentKeyboard.IsKeyDown(Keys.W) ? 1 : 0) - (Program.Game.CurrentKeyboard.IsKeyDown(Keys.S) ? 1 : 0)) * window.Local_Y;
-            Vector3 X = ((Program.Game.CurrentKeyboard.IsKeyDown(Keys.D) ? 1 : 0) - (Program.Game.CurrentKeyboard.IsKeyDown(Keys.A) ? 1 : 0)) * window.Local_X;
+            Vector3 Y = Input.KeyDelta(Keys.W, Keys.S) * window.Local_Y;
+            Vector3 X = Input.KeyDelta(Keys.A, Keys.D) * window.Local_X;
 
             Y *= (float)(Program.Game.FrameTime * 5);
             X *= (float)(Program.Game.FrameTime * 5);
 
             window.Position += Y + X;
 
-            int scroll = Program.Game.PreviousMouse.ScrollWheelValue - Program.Game.CurrentMouse.ScrollWheelValue;
-            if (scroll > 0) scroll = 1;
-            if (scroll < 0) scroll = -1;
+            int scroll = Input.GetMouseWheelDeltaNormal();
 
             window.Aim += (float)(scroll / Program.Game.FrameRate) * 10;
 
-            int rangeDelta = ((Program.Game.CurrentKeyboard.IsKeyDown(Keys.Q) ? 1 : 0) - (Program.Game.CurrentKeyboard.IsKeyDown(Keys.E) ? 1 : 0));
+            int rangeDelta = Input.KeyDelta(Keys.E, Keys.Q);
 
             window.Range += (float)(rangeDelta / Program.Game.FrameRate);
             if (window.Range < 0) window.Range = 0;
@@ -854,8 +850,8 @@ namespace core.src
         public BrushEditor(GameScene parent, BrushLibrary lib) : base(parent)
         {
             library = lib;
-            Vector2 p = new Vector2(_graphics.PresentationParameters.BackBufferHeight, 0);
-            Vector2 s = new Vector2((_graphics.PresentationParameters.BackBufferWidth - _graphics.PresentationParameters.BackBufferHeight) / 3, _graphics.PresentationParameters.BackBufferHeight / 2);
+            Vector2 p = new Vector2(Program.InternalScreen.Y, 0);
+            Vector2 s = new Vector2((Program.InternalScreen.X - Program.InternalScreen.Y) / 3f, Program.InternalScreen.Y / 2f);
             
             brushContentsList = new ListViewer<VertexModel.TexturedPolygon>(new List<VertexModel.TexturedPolygon>(), 20, p, s, Program.Game.Content);
             CurrentBrush = null;
@@ -938,14 +934,12 @@ namespace core.src
         float d_Distance = 5;
         public override void DefaultProcess(PerspectiveViewerWindow window)
         {
-            int scroll = Program.Game.PreviousMouse.ScrollWheelValue - Program.Game.CurrentMouse.ScrollWheelValue;
-            if (scroll > 0) scroll = 1;
-            if (scroll < 0) scroll = -1;
+            int scroll = -Input.GetMouseWheelDeltaNormal();
 
             d_Distance += (float)(scroll / Program.Game.FrameRate) * 10;
             window.Camera.Position = window.Camera.TargetAngle * -d_Distance;
 
-            if (Program.Game.CurrentKeyboard.IsKeyDown(Keys.R) && Program.Game.PreviousKeyboard.IsKeyUp(Keys.R))
+            if (Input.IsKeyPressed(Keys.R))
             {
                 renderPlanes = !renderPlanes;
             }

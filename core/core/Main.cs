@@ -2,6 +2,7 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using prog;
 using System;
 
 namespace core
@@ -23,33 +24,15 @@ namespace core
         private GameScene curscene;
         private GameScene nexscene;
 
-        private KeyboardState _prev, _cur;
-        private MouseState _pms, _cms;
-        public KeyboardState PrevKey => _prev;
-        public KeyboardState PreviousKeyboard => _prev;
-        public KeyboardState CurKey => _cur;
-        public KeyboardState CurrentKeyboard => _cur;
-
-        public MouseState PreviousMouse => _pms;
-        public MouseState CurrentMouse => _cms;
-
         private int ss;
-        public martgame(int sizeFactor = 120)
+        public martgame()
         {
-            ss = sizeFactor;
-
-            scal = new Vector2(ss / 120, ss / 120);
+            scal = new Vector2(Program.ExternalScreen.X / Program.InternalScreen.X, Program.ExternalScreen.Y / Program.InternalScreen.Y);
 
             _graphics = new GraphicsDeviceManager(this);
             _def = DepthStencilState.Default;
             Content.RootDirectory = "Content";
             IsMouseVisible = true;
-
-            _prev = new KeyboardState();
-            _cur = new KeyboardState();
-
-            _pms = new MouseState();
-            _cms = new MouseState();
 
             CommandConsole = new Console();
 
@@ -62,20 +45,23 @@ namespace core
         {
             // TODO: Add your initialization logic here
 
-            _graphics.PreferredBackBufferWidth = 16*ss;
-            _graphics.PreferredBackBufferHeight = 9*ss;
+            _graphics.PreferredBackBufferWidth = (int)Program.ExternalScreen.X;
+            _graphics.PreferredBackBufferHeight = (int)Program.ExternalScreen.Y;
             _graphics.ApplyChanges();
 
             base.Initialize();
 
-            facade = new RenderTarget2D(GraphicsDevice, 1920, 1080, true, SurfaceFormat.Alpha8, DepthFormat.Depth24Stencil8);
+            facade = new RenderTarget2D(GraphicsDevice, (int)Program.InternalScreen.X, (int)Program.InternalScreen.Y, true, SurfaceFormat.Alpha8, DepthFormat.Depth24Stencil8);
             dim = Vector2.Zero;
-            cull = new Rectangle(0, 0, 1920, 1080);
+            cull = new Rectangle(0, 0, (int)Program.InternalScreen.X, (int)Program.InternalScreen.Y);
+
+            Input.Init();
 
 
             CommandConsole.Initialize(this);
             CommandConsole.RegisterCommand("scene", loadscene, "Changes the current game scene.");
             curscene.Init(this);
+
         }
 
         protected override void LoadContent()
@@ -96,18 +82,15 @@ namespace core
                 nexscene = null;
             }
 
-            _prev = _cur;
-            _cur = Keyboard.GetState();
+            Input.Poll(Keyboard.GetState(), Mouse.GetState());
 
-            _pms = _cms;
-            _cms = Mouse.GetState();
             FrameTime = gameTime.ElapsedGameTime.TotalSeconds;
             FrameRate = (1 / gameTime.ElapsedGameTime.TotalSeconds);
 
             
             CommandConsole.Update(gameTime);
 #if DEBUG
-            if (KeyFall(Keys.OemTilde))
+            if (Input.IsKeyPressed(Keys.OemTilde))
                 CommandConsole.Toggle();
 
             if (!CommandConsole.IsVisible)
@@ -141,16 +124,11 @@ namespace core
 
             prog.Program.SpritesBeginDefault(_spriteBatch);
 
-            _spriteBatch.Draw(facade, dim, cull, Color.White, 0, dim, Vector2.One, SpriteEffects.None, 0f);
+            _spriteBatch.Draw(facade, dim, cull, Color.White, 0, dim, scal, SpriteEffects.None, 0f);
 
             _spriteBatch.End();
 
             base.Draw(gameTime);
-        }
-
-        public bool KeyFall(Keys key)
-        {
-            return _cur.IsKeyDown(key) && _prev.IsKeyUp(key);
         }
 
         private int loadscene(string[] args)
