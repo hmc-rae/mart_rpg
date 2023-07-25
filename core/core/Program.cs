@@ -11,7 +11,7 @@ namespace prog
         public static martgame Game;
         public static void Main(string[] args)
         {
-            Game = new martgame();
+            Game = new martgame(60);
             Game.Run();
         }
 

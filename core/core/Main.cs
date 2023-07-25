@@ -11,6 +11,10 @@ namespace core
         private GraphicsDeviceManager _graphics;
         internal SpriteBatch _spriteBatch;
         private DepthStencilState _def;
+        private RenderTarget2D facade;
+        private Rectangle cull;
+        private Vector2 dim;
+        private Vector2 scal;
 
         public Console CommandConsole;
         public double FrameRate;
@@ -29,8 +33,13 @@ namespace core
         public MouseState PreviousMouse => _pms;
         public MouseState CurrentMouse => _cms;
 
-        public martgame()
+        private int ss;
+        public martgame(int sizeFactor = 120)
         {
+            ss = sizeFactor;
+
+            scal = new Vector2(ss / 120, ss / 120);
+
             _graphics = new GraphicsDeviceManager(this);
             _def = DepthStencilState.Default;
             Content.RootDirectory = "Content";
@@ -53,11 +62,16 @@ namespace core
         {
             // TODO: Add your initialization logic here
 
-            _graphics.PreferredBackBufferWidth = 1920;
-            _graphics.PreferredBackBufferHeight = 1080;
+            _graphics.PreferredBackBufferWidth = 16*ss;
+            _graphics.PreferredBackBufferHeight = 9*ss;
             _graphics.ApplyChanges();
 
             base.Initialize();
+
+            facade = new RenderTarget2D(GraphicsDevice, 1920, 1080, true, SurfaceFormat.Alpha8, DepthFormat.Depth24Stencil8);
+            dim = Vector2.Zero;
+            cull = new Rectangle(0, 0, 1920, 1080);
+
 
             CommandConsole.Initialize(this);
             CommandConsole.RegisterCommand("scene", loadscene, "Changes the current game scene.");
@@ -115,13 +129,21 @@ namespace core
             curscene.PreRender();
 
             // Add all normal draw code
-            GraphicsDevice.SetRenderTarget(null);
+            GraphicsDevice.SetRenderTarget(facade);
             GraphicsDevice.Clear(Color.CornflowerBlue);
             GraphicsDevice.DepthStencilState = _def;
 
             curscene.OnRender();
 
             CommandConsole.Draw();
+
+            GraphicsDevice.SetRenderTarget(null);
+
+            prog.Program.SpritesBeginDefault(_spriteBatch);
+
+            _spriteBatch.Draw(facade, dim, cull, Color.White, 0, dim, Vector2.One, SpriteEffects.None, 0f);
+
+            _spriteBatch.End();
 
             base.Draw(gameTime);
         }
