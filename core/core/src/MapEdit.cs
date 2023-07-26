@@ -618,6 +618,7 @@ namespace core.src
             public float Range, Aim;
 
             public Vector3 Local_X, Local_Y, Local_Z, Position;
+            public Vector3 Flatten;
 
             private GraphicsDevice _graphics;
             private GameScene _parent;
@@ -653,6 +654,8 @@ namespace core.src
                 Local_Y = Vector3.UnitY;
                 Local_Z = Vector3.UnitZ;
 
+                Flatten = Vector3.One;
+
                 Camera.Recompile(n, f);
 
                 ortho = false;
@@ -664,6 +667,8 @@ namespace core.src
                 Local_Z = f;
                 Local_Y = u;
 
+                Flatten = Vector3.One - f;
+
                 Camera.TargetUp = Local_Y;
                 Camera.TargetAngle = Local_Z;
                 Camera.Position = Position + (Local_Z * Aim);
@@ -671,6 +676,14 @@ namespace core.src
                 Camera.Recompile(10, 10, -Range, Range);
 
                 ortho = true;
+            }
+            public Vector2 GetVector2(Vector3 pos)
+            {
+                pos *= Flatten;
+                float x = (pos * Local_X).Length();
+                float y = (pos * Local_Y).Length();
+
+                return new Vector2(x, y);
             }
 
             public void Poll()
@@ -846,6 +859,8 @@ namespace core.src
         protected ListViewer<VertexModel.TexturedPolygon> brushContentsList;
 
         protected VertexModel[] xyzPlanes;
+        protected Texture2D circleTex;
+        protected Vector2 circleOffset;
         private bool renderPlanes;
         public BrushEditor(GameScene parent, BrushLibrary lib) : base(parent)
         {
@@ -884,11 +899,35 @@ namespace core.src
                 xyzPlanes[i].Recompile(VertexModel.COMPILE_POLYGONS);
                 xyzPlanes[i].position = windows[i].Camera.Position;
             }
+
+            circleTex = new Texture2D(_graphics, 51, 51);
+            Color[] data = new Color[51 * 51];
+            circleOffset = new Vector2(25, 25);
+
+            for (float x = -25, k = 0; x <= 25; x++)
+            {
+                for (float y = -25; y <= 25; y++, k++)
+                {
+                    float del = (x * x) + (y * y);
+                    del = (float)Math.Sqrt(del);
+                    if (del <= 50)
+                    {
+                        data[(int)k] = Color.White;
+                    }
+                    else
+                    {
+                        data[(int)k] = new Color(0, 0, 0, 0);
+                    }
+                }
+            }
+
+            circleTex.SetData(data);
         }
 
         public override void Destroy()
         {
             base.Destroy();
+            circleTex.Dispose();
             brushContentsList.Destroy();
         }
 
@@ -1003,6 +1042,18 @@ namespace core.src
                 else //draw single poly + dots to represent its verts
                 {
                     CurrentBrush.physical.Draw(window.Camera, brushContentsList.curIndex);
+
+                    VertexModel.TexturedPolygon poly = CurrentBrush.physical.polygons[brushContentsList.curIndex];
+                    Program.SpritesBeginDefault(_sprites);
+                    for (int i = 0; i < poly.verticies.Length; i++)
+                    {
+                        VertexPositionColorTexture det = poly.verticies[i];
+
+                        Vector2 pos = window.GetVector2(det.Position);
+
+                        _sprites.Draw(circleTex, (pos - circleOffset), Color.White);
+                    }
+                    _sprites.End();
                 }
             }
 

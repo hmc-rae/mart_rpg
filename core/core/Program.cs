@@ -22,7 +22,7 @@ namespace prog
         public static void Main(string[] args)
         {
             InternalScreen = new Vector2(1920, 1080);
-            ExternalScreen = new Vector2(1920, 1080);
+            ExternalScreen = new Vector2(1366, 768);
 
             Game = new martgame();
             Game.Run();
