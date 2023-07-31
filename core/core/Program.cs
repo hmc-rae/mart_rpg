@@ -11,6 +11,8 @@ namespace prog
 {
     public static class Program
     {
+        internal static Color UI_COLOR = Color.BlanchedAlmond;
+        internal static Color UI_ALT_COLOR = Color.DarkGray;
         public static martgame Game;
 
         //Internal screen size : game space
@@ -22,7 +24,7 @@ namespace prog
         public static void Main(string[] args)
         {
             InternalScreen = new Vector2(1920, 1080);
-            ExternalScreen = new Vector2(1366, 768);
+            ExternalScreen = new Vector2(1920, 1080);
 
             Game = new martgame();
             Game.Run();

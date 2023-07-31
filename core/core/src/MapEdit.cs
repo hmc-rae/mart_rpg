@@ -1,10 +1,8 @@
-﻿using Microsoft.VisualBasic.Devices;
-using Microsoft.Xna.Framework;
+﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using prog;
-using SharpDX.DirectWrite;
 using System;
 using System.Collections.Generic;
 
@@ -15,6 +13,10 @@ namespace core.src
         ContentManager _content;
 
         public PerspectiveViewer curViewer;
+
+        public MapEditor mapEditor;
+        public BrushEditor brushEditor;
+
         public BrushLibrary library;
         public override void OnCreate()
         {
@@ -26,11 +28,25 @@ namespace core.src
 
             _content = content;
             library = new BrushLibrary(this);
-            curViewer = new BrushEditor(this, library);
+            mapEditor = new MapEditor(this, library);
+            brushEditor = new BrushEditor(this, library);
+
+            Program.Game.Window.Title = "Map Editor";
+            curViewer = mapEditor;
         }
 
         public override void OnFrame()
         {
+            if (Input.IsKeyPressed(Keys.F1))
+            {
+                Program.Game.Window.Title = "Map Editor";
+                curViewer = mapEditor;
+            }
+            if (Input.IsKeyPressed(Keys.F2))
+            {
+                Program.Game.Window.Title = "Brush Editor";
+                curViewer = brushEditor;
+            }
             curViewer.prepoll();
         }
         public override void PreRender()
@@ -276,7 +292,12 @@ namespace core.src
 
         public void Poll()
         {
-            Vector2 msps = Input.GetMousePosition() - offset;
+            Poll(Input.GetMousePosition());
+        }
+
+        public void Poll(Vector2 msps)
+        {
+            msps -= offset;
             msps *= multscale;
 
             msps = msps - screenPos;
@@ -290,7 +311,7 @@ namespace core.src
                     if (Input.IsMousePressed(Input.MouseButton.LeftMouse))
                     {
                         bdown = !bdown;
-                    } 
+                    }
                     break;
                 case ButtonMode.Hold:
 
@@ -323,13 +344,18 @@ namespace core.src
                         if (Input.IsMousePressed(Input.MouseButton.LeftMouse))
                             bdown = false;
                     }
-                    else 
+                    else
                     {
                         if (Input.IsMousePressed(Input.MouseButton.LeftMouse))
                             bdown = true;
                     }
                     break;
             }
+        }
+
+        public void Release()
+        {
+            bdown = false;
         }
 
         public void Destroy()
@@ -354,10 +380,65 @@ namespace core.src
         private SpriteBatch _sprites;
         private ContentManager _content;
 
+        private Func<T, int, string> gs;
+
+        public bool ButtonActive => _button.ButtonDown;
+
         public ListViewer(List<T> list, int sizeOfPage, Vector2 p, Vector2 s, ContentManager content)
         {
             _content = content;
             viewedList = list;
+            pageSize = sizeOfPage;
+
+            _sprites = Program.Game._spriteBatch;
+            curIndex = -1;
+            scrolledOffset = 0;
+
+            gs = GetString;
+
+            position = p;
+            size = s;
+
+            _button = new ButtonWidget2D(ButtonWidget2D.ButtonMode.Attend, position, size);
+
+            _rect = new Texture2D(Program.Game.GraphicsDevice, (int)s.X, (int)s.Y);
+
+            Color[] data = new Color[(int)s.X * (int)s.Y];
+            for (int i = 0; i < data.Length; i++)
+            {
+                data[i] = Program.UI_COLOR;
+
+                if (i % (int)s.X <= 1 || i / (int)s.X <= 1 || i % (int)s.X >= (int)s.X - 2 || i / (int)s.X >= (int)s.Y - 2 )
+                {
+                    data[i] = Color.Red;
+                }
+            }
+
+            _rect.SetData(data);
+
+            _rectSel = new Texture2D(Program.Game.GraphicsDevice, (int)s.X - 20, 20);
+            data = new Color[(int)(s.X - 20) * 20];
+            for (int i = 0; i < data.Length; i++)
+            {
+                data[i] = Color.LightCoral;
+            }
+            _rectSel.SetData(data);
+
+            _font = content.Load<SpriteFont>("Fonts\\Arial16");
+        }
+
+        public ListViewer(T[] list, int sizeOfPage, Vector2 p, Vector2 s, ContentManager content)
+        {
+            _content = content;
+
+            viewedList = new List<T>();
+            for (int i = 0; i < list.Length; i++)
+            {
+                viewedList.Add(list[i]);
+            }
+
+            gs = GetString;
+
             pageSize = sizeOfPage;
 
             _sprites = Program.Game._spriteBatch;
@@ -374,7 +455,12 @@ namespace core.src
             Color[] data = new Color[(int)s.X * (int)s.Y];
             for (int i = 0; i < data.Length; i++)
             {
-                data[i] = Color.LightGray;
+                data[i] = Program.UI_COLOR;
+
+                if (i % (int)s.X <= 1 || i / (int)s.X <= 1 || i % (int)s.X >= (int)s.X - 2 || i / (int)s.X >= (int)s.Y - 2)
+                {
+                    data[i] = Color.Red;
+                }
             }
 
             _rect.SetData(data);
@@ -388,6 +474,36 @@ namespace core.src
             _rectSel.SetData(data);
 
             _font = content.Load<SpriteFont>("Fonts\\Arial16");
+        }
+
+
+        public void SetStringFunc(Func<T, int, string> func)
+        {
+            gs = func;
+        }
+        public void ResetStringFunc()
+        {
+            gs = GetString;
+        }
+
+        public void SetData(T[] list)
+        {
+            viewedList.Clear();
+            for (int i = 0; i < list.Length; i++)
+            {
+                viewedList.Add(list[i]);
+            }
+        }
+        public T[] GetData()
+        {
+            T[] arr = new T[viewedList.Count];
+
+            for (int i = 0; i < arr.Length; i++)
+            {
+                arr[i] = viewedList[i];
+            }
+
+            return arr;
         }
 
         public void Poll()
@@ -441,7 +557,11 @@ namespace core.src
                 SamplerState.LinearClamp, DepthStencilState.Default,
                 RasterizerState.CullNone);
 
-            _sprites.Draw(_rect, position, Color.LightGray);
+            if (_button.ButtonDown)
+                _sprites.Draw(_rect, position, Color.White);
+            else
+                _sprites.Draw(_rect, position, Color.LightGray);
+
 
             Vector2 pos = position;
             pos.X += 5;
@@ -453,7 +573,7 @@ namespace core.src
                 {
                     _sprites.Draw(_rectSel, pos, Color.LightCoral);
                 }
-                _sprites.DrawString(_font, viewedList[K].ToString(), pos, Color.Black);
+                _sprites.DrawString(_font, gs(viewedList[K], K), pos, Color.Black);
 
                 pos.Y += spacing;
             }
@@ -466,6 +586,284 @@ namespace core.src
         {
             _rect.Dispose();
             _button.Destroy();
+        }
+
+        private string GetString(T entry, int i)
+        {
+            return entry.ToString();
+        }
+    }
+    public class PropertyViewer : ResourceInterface
+    {
+        public Vector2 position, size;
+        private Texture2D _rect;
+        private ButtonWidget2D _button;
+        private SpriteFont _font;
+        private SpriteBatch _sprites;
+        private GraphicsDevice _graphics;
+        private ContentManager _content;
+
+        private List<PropertyWidget> _widgets;
+
+        private int scrolled;
+        private int scrollMax;
+
+        public class PropertyWidget
+        {
+            public Vector2 position, size;
+            public ButtonWidget2D button;
+            public Texture2D rect;
+
+            public bool HasHeader;
+            public string HeaderText;
+
+            public string DisplayedText;
+            public bool trysetTemp;
+            public string TempText;
+
+            private Func<PropertyWidget, int> getStr;
+            private Func<PropertyWidget, int> attSetStr;
+
+            private GraphicsDevice _graphics;
+
+            private void setup(GraphicsDevice device, Vector2 pos, Vector2 siz, bool dostring, string disstring, Func<PropertyWidget, int> get, Func<PropertyWidget, int> set)
+            {
+                _graphics = device;
+                position = pos;
+                size = siz;
+                trysetTemp = false;
+
+                HasHeader = dostring;
+                HeaderText = disstring;
+
+                getStr = get;
+                attSetStr = set;
+
+                button = new ButtonWidget2D(ButtonWidget2D.ButtonMode.Attend, pos, size);
+                rect = new Texture2D(_graphics, (int)size.X, (int)size.Y);
+
+                Color[] data = new Color[(int)size.X * (int)size.Y];
+                for (int i = 0; i < data.Length; i++)
+                {
+                    data[i] = Program.UI_ALT_COLOR;
+                }
+                rect.SetData(data);
+
+                get(this);
+            }
+
+            public void Destroy()
+            {
+                rect.Dispose();
+                button.Destroy();
+            }
+
+            public PropertyWidget(GraphicsDevice graphics, Vector2 pos, Vector2 siz)
+            {
+                setup(graphics, pos, siz, false, "", dGS, dASS);
+            }
+            public PropertyWidget(GraphicsDevice device, Vector2 pos, Vector2 siz, Func<PropertyWidget, int> get, Func<PropertyWidget, int> set)
+            {
+                setup(device, pos, siz, false, "", get, set);
+            }
+            public PropertyWidget(GraphicsDevice device, Vector2 pos, Vector2 siz, string header, Func<PropertyWidget, int> get, Func<PropertyWidget, int> set)
+            {
+                setup(device, pos, siz, true, header, get, set);
+            }
+
+            public void Poll(Vector2 mpos)
+            {
+                button.Poll(mpos);
+
+                if (button.ButtonDown)
+                {
+                    trysetTemp = true;
+
+                    bool shift = Input.IsKeyDown(Keys.LeftShift) || Input.IsKeyDown(Keys.RightShift);
+                    for (int i = 0; i < 256; i++)
+                    {
+                        if (!Enum.IsDefined(typeof(Keys), i)) continue;
+
+                        if (Input.IsKeyPressed((Keys)i))
+                        {
+                            char ret = Input.GetChar((Keys)i, shift);
+                            if (ret != 0)
+                                TempText += ret;
+                        }
+                    }
+
+                    if (Input.IsKeyPressed(Keys.Back))
+                    {
+                        if (TempText.Length > 0)
+                        {
+                            TempText = TempText.Remove(TempText.Length - 1, 1);
+                        }
+                    }
+
+                    if (Input.IsKeyPressed(Keys.Enter))
+                    {
+                        attSetStr(this);
+                        getStr(this);
+                        trysetTemp = false;
+                        button.Release();
+                        TempText = "";
+                    }
+
+                    if (Input.IsKeyPressed(Keys.Escape))
+                    {
+                        trysetTemp = false;
+                        TempText = "";
+                        button.Release();
+                    }
+                }
+                else
+                {
+                    attSetStr(this);
+                    getStr(this);
+                    trysetTemp = false;
+                    button.Release();
+                    TempText = "";
+                }
+            }
+            public void Render(SpriteBatch _sprites, SpriteFont font, Vector2 origin, int ySub, Vector2 within)
+            {
+                Vector2 renPos = position + origin;
+                renPos.Y -= ySub;
+
+                Vector2 temp = renPos - origin;
+                if (temp.X < 0 || temp.Y < 0 || temp.X >= within.X - size.X || temp.Y >= within.Y - size.Y) return;
+
+                _sprites.Draw(rect, renPos, Color.LightGray);
+                renPos.X += 5;
+                renPos.Y += 5;
+
+                if (trysetTemp)
+                    _sprites.DrawString(font, TempText, renPos, Color.White);
+                else
+                {
+                    getStr(this);
+                    _sprites.DrawString(font, DisplayedText, renPos, Color.White);
+                }
+
+                if (HasHeader)
+                {
+                    renPos.Y -= 25;
+                    _sprites.DrawString(font, HeaderText, renPos, Color.Black);
+                }
+
+            }
+
+            private static int dGS(PropertyWidget widget)
+            {
+                return 0;
+            }
+            private static int dASS(PropertyWidget widget)
+            {
+                widget.DisplayedText = widget.TempText;
+                return 0;
+            }
+        }
+
+        public PropertyViewer(GraphicsDevice graphics, Vector2 pos, Vector2 siz, int maxScroll)
+        {
+            _graphics = graphics;
+            _sprites = Program.Game._spriteBatch;
+            position = pos;
+            size = siz;
+            scrolled = 0;
+            scrollMax = maxScroll;
+            _content = Program.Game.Content;
+
+            _font = _content.Load<SpriteFont>("Fonts\\Arial16");
+
+            _button = new ButtonWidget2D(ButtonWidget2D.ButtonMode.Attend, position, size);
+
+            _rect = new Texture2D(_graphics, (int)size.X, (int)size.Y);
+
+            Color[] data = new Color[(int)size.X * (int)size.Y];
+            for (int i = 0; i < data.Length; i++)
+            {
+                data[i] = Program.UI_COLOR;
+
+                if (i % (int)size.X <= 1 || i / (int)size.X <= 1 || i % (int)size.X >= (int)size.X - 2 || i / (int)size.X >= (int)size.Y - 2)
+                {
+                    data[i] = Color.Red;
+                }
+            }
+
+            _rect.SetData(data);
+
+            _widgets = new List<PropertyWidget>();
+        }
+
+        public void AddPropertyWidget(PropertyWidget widget)
+        {
+            _widgets.Add(widget);
+        }
+
+        public void Poll()
+        {
+            _button.Poll();
+
+            if (!_button.ButtonDown)
+            { //Reset any selections
+
+                for (int i = 0; i < _widgets.Count; i++)
+                {
+                    _widgets[i].TempText = "";
+                    _widgets[i].trysetTemp = false;
+                }
+            }
+            else
+            {
+                Vector2 mPos = Input.GetMousePosition();
+                int scroll = -Input.GetMouseWheelDeltaNormal() * 10;
+
+                scrolled += scroll;
+                if (scrolled < 0) scrolled = 0;
+                else if (scrolled > scrollMax) scrolled = scrollMax;
+
+                mPos.Y += scrolled;
+
+                mPos -= position;
+
+                for (int i = 0; i < _widgets.Count; i++)
+                {
+                    _widgets[i].Poll(mPos);
+                }
+            }
+        }
+        public void PreRender() { }
+        public void Render(bool beginSprites = true)
+        {
+            if (beginSprites)
+                Program.SpritesBeginDefault(_sprites);
+
+            if (!_button.ButtonDown)
+            {
+                _sprites.Draw(_rect, position, Color.LightGray);
+            } 
+            else
+            {
+                _sprites.Draw(_rect, position, Color.White);
+            }
+
+            for (int i = 0; i < _widgets.Count; i++)
+            {
+                _widgets[i].Render(_sprites, _font, position, scrolled, size);
+            }
+
+            if (beginSprites)
+                _sprites.End();
+        }
+        public void Destroy()
+        {
+            _rect.Dispose();
+
+            for (int i = 0; i < _widgets.Count; i++)
+            {
+                _widgets[i].Destroy();
+            }
         }
     }
     public class Brush
@@ -567,6 +965,15 @@ namespace core.src
                     brush.Bind(temp);
 
                     brushes.Add(brush);
+                }
+
+                if (Input.IsKeyPressed(Keys.Delete) && (Input.IsKeyDown(Keys.LeftControl) || Input.IsKeyDown(Keys.RightControl)))
+                {
+                    if (brushViewer.curIndex != -1)
+                    {
+                        brushes.RemoveAt(brushViewer.curIndex);
+                        brushViewer.curIndex = -1;
+                    }
                 }
             }
         }
@@ -679,11 +1086,31 @@ namespace core.src
             }
             public Vector2 GetVector2(Vector3 pos)
             {
-                pos *= Flatten;
-                float x = (pos * Local_X).Length();
-                float y = (pos * Local_Y).Length();
+                pos *= Flatten; 
+                Vector3 comp;
+                float x = 0;
+                float y = 0;
+
+                comp = pos * Local_X;
+                if (Local_X.X != 0) x = comp.X;
+                if (Local_X.Y != 0) x = comp.Y;
+                if (Local_X.Z != 0) x = comp.Z;
+
+                comp = -pos * Local_Y;
+                if (Local_Y.X != 0) y = comp.X;
+                if (Local_Y.Y != 0) y = comp.Y;
+                if (Local_Y.Z != 0) y = comp.Z;
 
                 return new Vector2(x, y);
+            }
+
+            public Vector3 GetVector3(Vector2 pos, Vector3 core)
+            {
+                Vector3 fresh = (Local_X * pos.X) + (Local_Y * -pos.Y);
+
+                fresh += (core * -Local_Z);
+
+                return fresh;
             }
 
             public void Poll()
@@ -731,6 +1158,7 @@ namespace core.src
 
                 windows[i] = new PerspectiveViewerWindow(_parent, i, temp, size);
             }
+            font = Program.Game.Content.Load<SpriteFont>("Fonts\\Arial16");
 
             //Setup cameras to be appropriate
 
@@ -850,13 +1278,25 @@ namespace core.src
             }
         }
     }
+    public class MapEditor : PerspectiveViewer
+    {
+        public BrushLibrary library;
+
+        public MapEditor(GameScene parent, BrushLibrary lib) :  base(parent)
+        {
+            library = lib;
+        }
+    }
     public class BrushEditor : PerspectiveViewer
     {
         public Brush CurrentBrush;
         public BrushLibrary library;
 
-
+        protected ListViewer<VertexPositionColorTexture> polyList;
         protected ListViewer<VertexModel.TexturedPolygon> brushContentsList;
+        protected PropertyViewer vertexPropertyViewer;
+
+        protected PropertyViewer brushPropertyViewer;
 
         protected VertexModel[] xyzPlanes;
         protected Texture2D circleTex;
@@ -866,14 +1306,38 @@ namespace core.src
         {
             library = lib;
             Vector2 p = new Vector2(Program.InternalScreen.Y, 0);
-            Vector2 s = new Vector2((Program.InternalScreen.X - Program.InternalScreen.Y) / 3f, Program.InternalScreen.Y / 2f);
+
+            //The size of a single "small" scroller
+            Vector2 s = new Vector2((Program.InternalScreen.X - Program.InternalScreen.Y) / 3f, Program.InternalScreen.Y / 3f);
             
-            brushContentsList = new ListViewer<VertexModel.TexturedPolygon>(new List<VertexModel.TexturedPolygon>(), 20, p, s, Program.Game.Content);
+            brushContentsList = new ListViewer<VertexModel.TexturedPolygon>(new List<VertexModel.TexturedPolygon>(), 10, p, s, Program.Game.Content);
+
+            p.Y += Program.InternalScreen.Y / 3f;
+            polyList = new ListViewer<VertexPositionColorTexture>(new List<VertexPositionColorTexture>(), 10, p, s, Program.Game.Content);
+            polyList.SetStringFunc((VertexPositionColorTexture ent, int i) =>
+            {
+                return $"{i}: ({Program.Vec3ToString(ent.Position)})";
+            });
+
+            p.Y += Program.InternalScreen.Y / 3f;
+
+            vertexPropertyViewer = new PropertyViewer(_graphics, p, s, 100);
+
+            SetupVertexProperty();
+
+            p = new Vector2(Program.InternalScreen.Y, 0);
+            p.X += s.X;
+            s.Y = Program.InternalScreen.Y;
+
+            brushPropertyViewer = new PropertyViewer(_graphics, p, s, 0);
+
+            SetupBrushProperty();
+
+
             CurrentBrush = null;
 
             windows[PERSPECTIVE_ID].Camera.TargetAngle = new Vector3(-1, -1, -1);
             windows[PERSPECTIVE_ID].Camera.Position = windows[PERSPECTIVE_ID].Camera.TargetAngle * -d_Distance;
-            font = Program.Game.Content.Load<SpriteFont>("Fonts\\Arial16");
 
             xyzPlanes = new VertexModel[4];
 
@@ -910,7 +1374,7 @@ namespace core.src
                 {
                     float del = (x * x) + (y * y);
                     del = (float)Math.Sqrt(del);
-                    if (del <= 50)
+                    if (del <= 25)
                     {
                         data[(int)k] = Color.White;
                     }
@@ -924,37 +1388,326 @@ namespace core.src
             circleTex.SetData(data);
         }
 
+        public void SetupVertexProperty()
+        {
+            Vector2 pos = new Vector2(15, 50);
+            Vector2 siz = new Vector2(80, 30);
+            //POSITION X
+            PropertyViewer.PropertyWidget widget = new PropertyViewer.PropertyWidget(_graphics, pos, siz, "Position (XYZ)", (PropertyViewer.PropertyWidget parent) => //Get
+            {
+                if (brushContentsList.curIndex == -1 || selVert == -1)
+                {
+                    parent.DisplayedText = "UNDF";
+                    return 0;
+                }
+                parent.DisplayedText = String.Format("{0:0.00}", CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies[selVert].Position.X);
+                return 0;
+            }, (PropertyViewer.PropertyWidget parent) => //Set
+            {
+                if (brushContentsList.curIndex == -1 || selVert == -1) return -1;
+                float temp = 0;
+                if (float.TryParse(parent.TempText, out temp))
+                {
+                    CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies[selVert].Position.X = temp;
+                    CurrentBrush.physical.polygons[brushContentsList.curIndex].Recompile();
+                    polyList.SetData(CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies);
+                }
+                return 0;
+            });
+            vertexPropertyViewer.AddPropertyWidget(widget);
+
+            //POSITION Y (NO HEADER)
+            pos.X += 85;
+            widget = new PropertyViewer.PropertyWidget(_graphics, pos, siz, (PropertyViewer.PropertyWidget parent) => //Get
+            {
+                if (brushContentsList.curIndex == -1 || selVert == -1)
+                {
+                    parent.DisplayedText = "UNDF";
+                    return 0;
+                }
+                parent.DisplayedText = String.Format("{0:0.00}", CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies[selVert].Position.Y);
+                return 0;
+            }, (PropertyViewer.PropertyWidget parent) => //Set
+            {
+                if (brushContentsList.curIndex == -1 || selVert == -1) return -1;
+                float temp = 0;
+                if (float.TryParse(parent.TempText, out temp))
+                {
+                    CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies[selVert].Position.Y = temp;
+                    CurrentBrush.physical.polygons[brushContentsList.curIndex].Recompile();
+                    polyList.SetData(CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies);
+                }
+                return 0;
+            });
+            vertexPropertyViewer.AddPropertyWidget(widget);
+
+            //POSITION Z (NO HEADER)
+            pos.X += 85;
+            widget = new PropertyViewer.PropertyWidget(_graphics, pos, siz, (PropertyViewer.PropertyWidget parent) => //Get
+            {
+                if (brushContentsList.curIndex == -1 || selVert == -1)
+                {
+                    parent.DisplayedText = "UNDF";
+                    return 0;
+                }
+                parent.DisplayedText = String.Format("{0:0.00}", CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies[selVert].Position.Z);
+                return 0;
+            }, (PropertyViewer.PropertyWidget parent) => //Set
+            {
+                if (brushContentsList.curIndex == -1 || selVert == -1) return -1;
+                float temp = 0;
+                if (float.TryParse(parent.TempText, out temp))
+                {
+                    CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies[selVert].Position.Z = temp;
+                    CurrentBrush.physical.polygons[brushContentsList.curIndex].Recompile();
+                    polyList.SetData(CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies);
+                }
+                return 0;
+            });
+            vertexPropertyViewer.AddPropertyWidget(widget);
+
+            pos.X = 15;
+            pos.Y += 75;
+
+            siz.X = 50;
+
+            //COLOR R
+            vertexPropertyViewer.AddPropertyWidget(new PropertyViewer.PropertyWidget(_graphics, pos, siz, "Color (RGB)", (PropertyViewer.PropertyWidget parent) => //Get
+            {
+                if (brushContentsList.curIndex == -1 || selVert == -1)
+                {
+                    parent.DisplayedText = "UNDF";
+                    return 0;
+                }
+                parent.DisplayedText = $"{CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies[selVert].Color.R}";
+                return 0;
+            }, (PropertyViewer.PropertyWidget parent) => //Set
+            {
+                if (brushContentsList.curIndex == -1 || selVert == -1) return -1;
+                byte temp = 0;
+                if (byte.TryParse(parent.TempText, out temp))
+                {
+                    CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies[selVert].Color.R = temp;
+                    CurrentBrush.physical.polygons[brushContentsList.curIndex].Recompile();
+                    polyList.SetData(CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies);
+                }
+                return 0;
+            }));
+
+            //COLOR G
+            pos.X += 85;
+            vertexPropertyViewer.AddPropertyWidget(new PropertyViewer.PropertyWidget(_graphics, pos, siz, (PropertyViewer.PropertyWidget parent) => //Get
+            {
+                if (brushContentsList.curIndex == -1 || selVert == -1)
+                {
+                    parent.DisplayedText = "UNDF";
+                    return 0;
+                }
+                parent.DisplayedText = $"{CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies[selVert].Color.G}";
+                return 0;
+            }, (PropertyViewer.PropertyWidget parent) => //Set
+            {
+                if (brushContentsList.curIndex == -1 || selVert == -1) return -1;
+                byte temp = 0;
+                if (byte.TryParse(parent.TempText, out temp))
+                {
+                    CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies[selVert].Color.G = temp;
+                    CurrentBrush.physical.polygons[brushContentsList.curIndex].Recompile();
+                    polyList.SetData(CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies);
+                }
+                return 0;
+            }));
+
+            //COLOR B
+            pos.X += 85;
+            vertexPropertyViewer.AddPropertyWidget(new PropertyViewer.PropertyWidget(_graphics, pos, siz, (PropertyViewer.PropertyWidget parent) => //Get
+            {
+                if (brushContentsList.curIndex == -1 || selVert == -1)
+                {
+                    parent.DisplayedText = "UNDF";
+                    return 0;
+                }
+                parent.DisplayedText = $"{CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies[selVert].Color.B}";
+                return 0;
+            }, (PropertyViewer.PropertyWidget parent) => //Set
+            {
+                if (brushContentsList.curIndex == -1 || selVert == -1) return -1;
+                byte temp = 0;
+                if (byte.TryParse(parent.TempText, out temp))
+                {
+                    CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies[selVert].Color.B = temp;
+                    CurrentBrush.physical.polygons[brushContentsList.curIndex].Recompile();
+                    polyList.SetData(CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies);
+                }
+                return 0;
+            }));
+
+            pos.X = 15;
+            pos.Y += 75;
+
+            //COLOR R
+            vertexPropertyViewer.AddPropertyWidget(new PropertyViewer.PropertyWidget(_graphics, pos, siz, "Alpha", (PropertyViewer.PropertyWidget parent) => //Get
+            {
+                if (brushContentsList.curIndex == -1 || selVert == -1)
+                {
+                    parent.DisplayedText = "UNDF";
+                    return 0;
+                }
+                parent.DisplayedText = $"{CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies[selVert].Color.A}";
+                return 0;
+            }, (PropertyViewer.PropertyWidget parent) => //Set
+            {
+                if (brushContentsList.curIndex == -1 || selVert == -1) return -1;
+                byte temp = 0;
+                if (byte.TryParse(parent.TempText, out temp))
+                {
+                    CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies[selVert].Color.A = temp;
+                    CurrentBrush.physical.polygons[brushContentsList.curIndex].Recompile();
+                    polyList.SetData(CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies);
+                }
+                return 0;
+            }));
+
+            pos.Y += 75;
+            siz.X = 100;
+
+            //TEXTURE X
+            vertexPropertyViewer.AddPropertyWidget(new PropertyViewer.PropertyWidget(_graphics, pos, siz, "Texture Coordinates (X/Y)", (PropertyViewer.PropertyWidget parent) => //Get
+            {
+                if (brushContentsList.curIndex == -1 || selVert == -1)
+                {
+                    parent.DisplayedText = "UNDF";
+                    return 0;
+                }
+                parent.DisplayedText = $"{CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies[selVert].TextureCoordinate.X}";
+                return 0;
+            }, (PropertyViewer.PropertyWidget parent) => //Set
+            {
+                if (brushContentsList.curIndex == -1 || selVert == -1) return -1;
+                float temp = 0;
+                if (float.TryParse(parent.TempText, out temp))
+                {
+                    CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies[selVert].TextureCoordinate.X = temp;
+                    CurrentBrush.physical.polygons[brushContentsList.curIndex].Recompile();
+                    polyList.SetData(CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies);
+                }
+                return 0;
+            }));
+
+            //TEXTURE Y
+
+            pos.X += 105;
+            vertexPropertyViewer.AddPropertyWidget(new PropertyViewer.PropertyWidget(_graphics, pos, siz, (PropertyViewer.PropertyWidget parent) => //Get
+            {
+                if (brushContentsList.curIndex == -1 || selVert == -1)
+                {
+                    parent.DisplayedText = "UNDF";
+                    return 0;
+                }
+                parent.DisplayedText = $"{CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies[selVert].TextureCoordinate.Y}";
+                return 0;
+            }, (PropertyViewer.PropertyWidget parent) => //Set
+            {
+                if (brushContentsList.curIndex == -1 || selVert == -1) return -1;
+                float temp = 0;
+                if (float.TryParse(parent.TempText, out temp))
+                {
+                    CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies[selVert].TextureCoordinate.Y = temp;
+                    CurrentBrush.physical.polygons[brushContentsList.curIndex].Recompile();
+                    polyList.SetData(CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies);
+                }
+                return 0;
+            }));
+        }
+
+        public void SetupBrushProperty()
+        {
+
+        }
+
         public override void Destroy()
         {
             base.Destroy();
             circleTex.Dispose();
             brushContentsList.Destroy();
+            vertexPropertyViewer.Destroy();
+            brushPropertyViewer.Destroy();
         }
 
         int lastIndexLib = -1;
+        int lastIndexBrush = -1;
         public override void Poll()
         {
             brushContentsList.Poll();
+            brushPropertyViewer.Poll();
             library.Poll();
+            polyList.Poll();
 
+            //Select brush from the library
             if (lastIndexLib != library.brushViewer.curIndex)
             {
                 lastIndexLib = library.brushViewer.curIndex;
+                selVert = -1;
+                polyList.curIndex = -1;
+                mouseState = 0;
                 if (lastIndexLib != -1)
                 {
                     CurrentBrush = library.brushViewer.viewedList[lastIndexLib]; 
                     brushContentsList.viewedList = CurrentBrush.modelPolys;
+                    rendersides = true;
                     brushContentsList.curIndex = -1;
                 }
                 else
                 {
                     CurrentBrush = null;
                     brushContentsList.viewedList = new List<VertexModel.TexturedPolygon>();
+                    rendersides = true;
                     brushContentsList.curIndex = -1;
                 }
             }
 
-            //Get idx of the list and select the appropriate texturedpolygon. 
+            //Select polygon in the brush
+            if (lastIndexBrush != brushContentsList.curIndex)
+            {
+                lastIndexBrush = brushContentsList.curIndex;
+                selVert = -1;
+                polyList.curIndex = -1;
+                mouseState = 0;
+                if (lastIndexBrush != -1)
+                {
+                    polyList.SetData(CurrentBrush.physical.polygons[lastIndexBrush].verticies);
+                }
+                else
+                {
+                    polyList.viewedList = new List<VertexPositionColorTexture>();
+                }
+            }
+            
+            //Select vertice from the current polygon
+            if (selVert != polyList.curIndex)
+            {
+                selVert = polyList.curIndex;
+                if (selVert != -1)
+                {
+                    mouseState = 1;
+                }
+                else
+                {
+                    mouseState = 0;
+                }
+            }
+
+            //Poll if only active
+            if (selVert != -1)
+            {
+                vertexPropertyViewer.Poll();
+            }
+
+            //brush contents delete/create polys
+            if (brushContentsList.ButtonActive) 
+            {
+
+            }
         }
         public override void AddlRender()
         {
@@ -963,6 +1716,13 @@ namespace core.src
                 RasterizerState.CullNone);
             
             brushContentsList.Render(false);
+            brushPropertyViewer.Render(false);
+
+            if (selVert != -1)
+                vertexPropertyViewer.Render(false);
+
+            if (lastIndexBrush != -1)
+                polyList.Render(false);
 
             library.Render(false);
 
@@ -971,6 +1731,7 @@ namespace core.src
 
         //DEFAULT PERSPECTIVE
         float d_Distance = 5;
+        bool rendersides = true;
         public override void DefaultProcess(PerspectiveViewerWindow window)
         {
             int scroll = -Input.GetMouseWheelDeltaNormal();
@@ -978,9 +1739,13 @@ namespace core.src
             d_Distance += (float)(scroll / Program.Game.FrameRate) * 10;
             window.Camera.Position = window.Camera.TargetAngle * -d_Distance;
 
-            if (Input.IsKeyPressed(Keys.R))
+            if (Input.IsKeyPressed(Keys.P))
             {
                 renderPlanes = !renderPlanes;
+            }
+            if (Input.IsKeyPressed(Keys.R))
+            {
+                rendersides = !rendersides;
             }
         }
         public override void DefaultRender(PerspectiveViewerWindow window)
@@ -996,7 +1761,14 @@ namespace core.src
                 CurrentBrush.physical.position = Vector3.Zero;
 
                 //TODO: Optional mode to render only selected polygon
-                CurrentBrush.physical.Draw(window.Camera);
+                if (brushContentsList.curIndex != -1 && !rendersides)
+                {
+                    CurrentBrush.physical.Draw(window.Camera, brushContentsList.curIndex);
+                }
+                else
+                {
+                    CurrentBrush.physical.Draw(window.Camera);
+                }
 
                 CurrentBrush.physical.position = temp;
             }
@@ -1017,9 +1789,110 @@ namespace core.src
         }
 
         //Orthos
+        int selVert = -1;
+        int mouseState = 0;
         public override void OrthoProcess(PerspectiveViewerWindow window, WindowContext context)
         {
             base.OrthoProcess(window, context);
+
+            if (brushContentsList.curIndex != -1)
+            {
+                Vector2 mp = Input.GetMousePosition() - window.TargetOrigin;
+                Vector2 pos;
+
+                VertexModel.TexturedPolygon poly = CurrentBrush.physical.polygons[brushContentsList.curIndex];
+                switch (mouseState)
+                {
+                    case 0:
+                        //Acquire an initial vertex ID to refer by
+                        if (Input.IsMousePressed(Input.MouseButton.LeftMouse))
+                        { //Check all to see if it is within 25 of the point
+                            bool clickWithin = false;
+
+                            for (int i = (selVert+1)%poly.verticies.Length, k = 0; k < poly.verticies.Length; i = (i + 1) % poly.verticies.Length, k++)
+                            {
+                                VertexPositionColorTexture det = poly.verticies[i];
+
+                                pos = window.GetVector2(det.Position);
+
+                                pos.X *= (window.Target.Width / 10);
+                                pos.Y *= (window.Target.Height / 10);
+
+                                pos += new Vector2(window.Target.Width, window.Target.Height) / 2;
+
+                                pos -= mp;
+
+                                if (pos.Length() <= 25)
+                                {
+                                    selVert = i;
+                                    polyList.curIndex = selVert;
+                                    clickWithin = true;
+                                    break;
+                                }
+                            }
+
+                            if (!clickWithin)
+                            {
+                                selVert = -1;
+                                break;
+                            }
+
+                            mouseState = 1;
+                        }
+                        break;
+                    case 1:
+                        //Allow for freemove: if click outside, go to 0
+
+                        pos = window.GetVector2(poly.verticies[selVert].Position);
+
+                        pos.X *= (window.Target.Width / 10);
+                        pos.Y *= (window.Target.Height / 10);
+
+                        pos += new Vector2(window.Target.Width, window.Target.Height) / 2;
+
+                        pos -= mp;
+
+                        if (Input.IsMousePressed(Input.MouseButton.LeftMouse))
+                        {
+                            if (pos.Length() <= 25)
+                            {
+                                mouseState = 2;
+                            }
+                            else
+                            {
+                                mouseState = 0;
+                                selVert = -1;
+                                polyList.curIndex = -1;
+                            }
+                        }
+
+                        break;
+                    case 2:
+                        //Manip a vertex
+
+                        Vector3 MouseProjection;
+
+                        Vector2 MouseOrigin = mp;
+                        if (MouseOrigin.X < 0 || MouseOrigin.Y < 0 || MouseOrigin.X > window.Target.Width || MouseOrigin.Y > window.Target.Height) mouseState = 1;
+
+                        MouseOrigin -= new Vector2(window.Target.Width, window.Target.Height) / 2;
+
+                        MouseOrigin.Y /= (window.Target.Height / 10);
+                        MouseOrigin.X /= (window.Target.Width / 10);
+
+                        MouseProjection = window.GetVector3(MouseOrigin, poly.verticies[selVert].Position);
+
+                        poly.verticies[selVert].Position = MouseProjection;
+
+                        if (!Input.IsMouseDown(Input.MouseButton.LeftMouse))
+                        {
+                            poly.Recompile();
+                            polyList.SetData(CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies);
+                            mouseState = 1;
+                        }
+                        break;
+                }
+            }
         }
         public override void OrthoRender(PerspectiveViewerWindow window, WindowContext context)
         {
@@ -1051,7 +1924,19 @@ namespace core.src
 
                         Vector2 pos = window.GetVector2(det.Position);
 
-                        _sprites.Draw(circleTex, (pos - circleOffset), Color.White);
+                        pos.X *= (window.Target.Width / 10);
+                        pos.Y *= (window.Target.Height / 10);
+
+                        pos += new Vector2(window.Target.Width, window.Target.Height) / 2;
+
+                        if (selVert == i)
+                        {
+                            _sprites.Draw(circleTex, (pos - circleOffset), Color.Gold);
+                        }
+                        else
+                        {
+                            _sprites.Draw(circleTex, (pos - circleOffset), Color.White);
+                        }
                     }
                     _sprites.End();
                 }
