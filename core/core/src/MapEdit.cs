@@ -999,6 +999,49 @@ namespace core.src
             brushViewer.Destroy();
         }
     }
+    public class MapFile : ResourceInterface
+    {
+        public List<Brush> mapBrushes;
+        public ListViewer<Brush> mapBrushViewer;
+
+        private GameScene parent;
+        private SpriteBatch _sprites;
+
+        public MapFile(GameScene scene)
+        {
+            parent = scene;
+            _sprites = parent._game._spriteBatch;
+
+            Vector2 pos = new Vector2(Program.InternalScreen.Y, 0);
+            Vector2 siz = new Vector2((Program.InternalScreen.X - Program.InternalScreen.Y) / 3f, Program.InternalScreen.Y / 2);
+            pos.X += siz.X;
+            mapBrushes = new List<Brush>();
+            mapBrushViewer = new ListViewer<Brush>(mapBrushes, 10, pos, siz, Program.Game.Content);
+        }
+
+        public void Poll()
+        {
+            mapBrushViewer.Poll();
+        }
+        public void PreRender()
+        {
+
+        }
+        public void Render(bool beginSprites = true)
+        {
+            if (beginSprites)
+                Program.SpritesBeginDefault(_sprites);
+
+            mapBrushViewer.Render(false);
+
+            if (beginSprites)
+                _sprites.End();
+        }
+        public void Destroy()
+        {
+            mapBrushViewer.Destroy();
+        }
+    }
 
     public class PerspectiveViewer
     {
@@ -1281,10 +1324,32 @@ namespace core.src
     public class MapEditor : PerspectiveViewer
     {
         public BrushLibrary library;
+        public MapFile map;
 
         public MapEditor(GameScene parent, BrushLibrary lib) :  base(parent)
         {
             library = lib;
+            map = new MapFile(parent);
+        }
+
+        public override void Destroy()
+        {
+            base.Destroy();
+            map.Destroy();
+        }
+        public override void Poll()
+        {
+            base.Poll();
+            map.Poll();
+            library.Poll();
+        }
+        public override void AddlRender()
+        {
+            Program.SpritesBeginDefault(_sprites);
+            map.Render(false);
+            library.Render(false);
+
+            _sprites.End();
         }
     }
     public class BrushEditor : PerspectiveViewer
@@ -1883,11 +1948,11 @@ namespace core.src
                         MouseProjection = window.GetVector3(MouseOrigin, poly.verticies[selVert].Position);
 
                         poly.verticies[selVert].Position = MouseProjection;
+                        poly.Recompile();
+                        polyList.SetData(CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies);
 
                         if (!Input.IsMouseDown(Input.MouseButton.LeftMouse))
                         {
-                            poly.Recompile();
-                            polyList.SetData(CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies);
                             mouseState = 1;
                         }
                         break;
