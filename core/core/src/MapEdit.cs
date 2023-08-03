@@ -3,8 +3,13 @@ using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using prog;
+using SharpDX.MediaFoundation;
+using SharpDX.XAudio2;
 using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
+using static core.src.VertexModel;
+using static core.src.VertexModelAdvanced;
 
 namespace core.src
 {
@@ -79,6 +84,8 @@ namespace core.src
         public class TexturedPolygon
         {
             public VertexPositionColorTexture[] verticies;
+            public Texture2D texture;
+            public bool textureBuilt;
             public VertexBuffer buffer;
             public int primitiveCount;
             public PrimitiveType primitiveType;
@@ -100,6 +107,7 @@ namespace core.src
                 primitiveCount = primitives;
                 primitiveType = type;
 
+                textureBuilt = false;
 
                 buffer = new VertexBuffer(_device, typeof(VertexPositionColorTexture), verticies.Length, BufferUsage.WriteOnly);
             }
@@ -144,11 +152,14 @@ namespace core.src
         }
         public void Draw(Camera camera)
         {
-            camera.BindTexture();
             camera.BindWorldPosition(position);
             for (int n = 0; n < polygons.Length; n++)
             {
                 if (!polygons[n].built) continue;
+                if (polygons[n].textureBuilt)
+                    camera.BindTexture(polygons[n].texture);
+                else
+                    camera.BindTexture();
                 _device.SetVertexBuffer(polygons[n].buffer);
                 foreach (EffectPass pass in camera.effect.CurrentTechnique.Passes)
                 {
@@ -159,11 +170,14 @@ namespace core.src
         }
         public void Draw(Camera camera, int n)
         {
-            camera.BindTexture();
             camera.BindWorldPosition(position);
             if (n < 0 || n >= polygons.Length) return;
 
             if (!polygons[n].built) return;
+            if (polygons[n].textureBuilt)
+                camera.BindTexture(polygons[n].texture);
+            else
+                camera.BindTexture();
             _device.SetVertexBuffer(polygons[n].buffer);
             foreach (EffectPass pass in camera.effect.CurrentTechnique.Passes)
             {
@@ -219,6 +233,16 @@ namespace core.src
 
             return verts;
         }
+        internal static VertexPositionColorTexture[] Generate3Point(Vector3 dir, Vector3 a, Vector3 b)
+        {
+            VertexPositionColorTexture[] verts = new VertexPositionColorTexture[3];
+
+            verts[0] = new VertexPositionColorTexture(dir + (a) + (b), ColorByVectors(dir, a, b), new Vector2(0, 0));
+            verts[1] = new VertexPositionColorTexture(dir + (-a) + (b), ColorByVectors(dir, -a, b), new Vector2(1, 0));
+            verts[2] = new VertexPositionColorTexture(dir + (a) + (-b), ColorByVectors(dir, a, -b), new Vector2(0, 1));
+
+            return verts;
+        }
         internal static VertexPositionColorTexture[] Generate4Point(Vector3 dir, Vector3 a, Vector3 b, Color over)
         {
             VertexPositionColorTexture[] verts = new VertexPositionColorTexture[4];
@@ -230,6 +254,16 @@ namespace core.src
 
             return verts;
         }
+        internal static VertexPositionColorTexture[] Generate3Point(Vector3 dir, Vector3 a, Vector3 b, Color over)
+        {
+            VertexPositionColorTexture[] verts = new VertexPositionColorTexture[3];
+
+            verts[0] = new VertexPositionColorTexture(dir + (a) + (b), over, new Vector2(0, 0));
+            verts[1] = new VertexPositionColorTexture(dir + (-a) + (b), over, new Vector2(1, 0));
+            verts[2] = new VertexPositionColorTexture(dir + (a) + (-b), over, new Vector2(0, 1));
+
+            return verts;
+        }
         internal static Color ColorByVectors(Vector3 a, Vector3 b, Vector3 c)
         {
             Vector3 sum = a + b + c;
@@ -238,7 +272,576 @@ namespace core.src
             return new Color(sum);
         }
     }
+    /// <summary>
+    /// A replacement for typical VertexModels
+    /// </summary>
+    public class VertexModelAdvanced
+    {
+        public class Polygon
+        {
+            public VertexPositionColorTexture[] verticies;
+            public int vertexCount;
+            public int primitiveCount;
+            public PrimitiveType primitiveType;
 
+            public Texture2D texture;
+            public bool textureBuilt;
+
+            public VertexBuffer buffer;
+
+            public bool built;
+
+            protected GraphicsDevice _graphics;
+
+            protected static int id_master = 0;
+            protected int id;
+
+            public Polygon(GraphicsDevice device, int points, int prims, PrimitiveType type)
+            {
+                vertexCount = points;
+                _graphics = device;
+                verticies = new VertexPositionColorTexture[points];
+                primitiveCount = prims;
+                primitiveType = type;
+
+                textureBuilt = false;
+                built = false;
+
+                id = id_master++;
+
+                buffer = new VertexBuffer(_graphics, typeof(VertexPositionColorTexture), points, BufferUsage.WriteOnly);
+            }
+            public Polygon(GraphicsDevice device, int points, int prims, PrimitiveType type, VertexPositionColorTexture[] verts) : this(device, points, prims, type)
+            {
+                SetVerts(verts);
+            }
+            public Polygon(GraphicsDevice device, int points, int prims, PrimitiveType type, Vector3[] vertPoints, bool autoColor) : this(device, points, prims, type)
+            {
+                SetVerts(vertPoints, autoColor);
+            }
+
+            public virtual void Compile()
+            {
+                buffer.SetData(verticies);
+                built = true;
+            }
+
+            public virtual void SetVerts(VertexPositionColorTexture[] verts)
+            {
+                if (verts.Length != vertexCount) return;
+                verticies = verts;
+                Compile();
+            }
+            public virtual void SetVerts(Vector3[] vertPoints, bool autoColor)
+            {
+                if (vertPoints.Length != vertexCount) return;
+
+                for (int i = 0; i < vertexCount; i++)
+                {
+                    verticies[i].Position = vertPoints[i];
+                    if (autoColor)
+                    {
+                        verticies[i].Color = new Color(vertPoints[i]);
+                    }
+                }
+
+                Compile();
+            }
+
+            public virtual Vector3 GetVertexPoint(int vertex)
+            {
+                return verticies[vertex].Position;
+            }
+            public virtual Color GetVertexColor(int vertex)
+            {
+                return verticies[vertex].Color;
+            }
+            public virtual Vector2 GetVertexTexturePos(int vertex)
+            {
+                return verticies[vertex].TextureCoordinate;
+            }
+            public virtual void SetVertexPoint(int vertex, Vector3 pos)
+            {
+                verticies[vertex].Position = pos;
+            }
+            public virtual void SetVertexColor(int vertex, Color col)
+            {
+                verticies[vertex].Color = col;
+            }
+            public virtual void SetVertexTexturePos(int vertex, Vector2 pos)
+            {
+                verticies[vertex].TextureCoordinate = pos;
+            }
+        }
+        public class SharedPolygon : Polygon
+        {
+            public int[] vertexReferences;
+            private List<SharedPoint> _points;
+            public Vector3 core;
+
+            public SharedPolygon(GraphicsDevice device, int points, int prims, PrimitiveType type, Vector3 origin, List<SharedPoint> ppoints) : base(device, points, prims, type)
+            {
+                vertexReferences = new int[vertexCount];
+                core = origin;
+                _points = ppoints;
+            }
+            public SharedPolygon(GraphicsDevice device, int points, int prims, PrimitiveType type, Vector3 origin, List<SharedPoint> ppoints, VertexPositionColorTexture[] verts, float rounding = 0.1f) : this(device, points, prims, type, origin, ppoints)
+            {
+                SetVerts(verts, rounding);
+            }
+            public SharedPolygon(GraphicsDevice device, int points, int prims, PrimitiveType type, Vector3 origin, List<SharedPoint> ppoints, Vector3[] vertPoints, bool autoColor, float rounding = 0.1f) : this(device, points, prims, type, origin, ppoints)
+            {
+                SetVerts(vertPoints, autoColor, rounding);
+            }
+
+            /// <summary>
+            /// Sets the vertexposition data to the given array, and auto-references points by a default rounding value of 0.1.
+            /// </summary>
+            /// <param name="verts"></param>
+            public override void SetVerts(VertexPositionColorTexture[] verts)
+            {
+                SetVerts(verts, 0.1f);
+            }
+            /// <summary>
+            /// Sets the vertexposition data to the given array, and auto-references points by a given rounding value.
+            /// </summary>
+            /// <param name="verts"></param>
+            /// <param name="rounding"></param>
+            public void SetVerts(VertexPositionColorTexture[] verts, float rounding)
+            {
+                if (verts.Length != vertexCount) return;
+
+                // For each vertice, look to see if there's a point in the ppoints list that matches the given position by the rounding value.
+                // If there exists one, set to that pos and refer to it.
+                // If there isn't, create a new ppoint entry for the given pos and refer to it.
+                // Note that the pos must be factored to the origin point
+
+                for (int i = 0; i < vertexCount; i++)
+                {
+                    verticies[i] = verts[i];
+
+                    Vector3 temp = verticies[i].Position + core;
+
+                    bool found = false;
+                    for (int k = 0; k < _points.Count; k++)
+                    {
+                        float len = (_points[k].pos - temp).Length();
+                        if (len <= rounding)
+                        {
+                            found = true;
+                            vertexReferences[i] = k;
+                            verticies[i].Position = _points[k].pos - core;
+                            break;
+                        }
+                    }
+
+                    if (!found)
+                    {
+                        vertexReferences[i] = _points.Count;
+                        _points.Add(new SharedPoint(temp, _points.Count));
+                    }
+                }
+
+                Compile();
+            }
+
+            /// <summary>
+            /// Sets the vertexposition data to the given vectors with optional autocoloring, and auto-references points by a default rounding value of 0.1.
+            /// </summary>
+            /// <param name="vertPoints"></param>
+            /// <param name="autoColor"></param>
+            public override void SetVerts(Vector3[] vertPoints, bool autoColor)
+            {
+                SetVerts(vertPoints, autoColor, 0.1f);
+            }
+            /// <summary>
+            /// Sets the vertexposition data to the given vectors with optional autocoloring, and auto-references points by a given rounding value.
+            /// </summary>
+            /// <param name="vertPoints"></param>
+            /// <param name="autoColor"></param>
+            /// <param name="rounding"></param>
+            public void SetVerts(Vector3[] vertPoints, bool autoColor, float rounding)
+            {
+                if (vertPoints.Length != vertexCount) return;
+
+                for (int i = 0; i < vertexCount; i++)
+                {
+                    Vector3 temp = vertPoints[i] + core;
+
+                    bool found = false;
+                    for (int k = 0; k < _points.Count; k++)
+                    {
+                        float len = (_points[k].pos - temp).Length();
+                        if (len <= rounding)
+                        {
+                            found = true;
+                            vertexReferences[i] = k;
+                            verticies[i].Position = _points[k].pos - core;
+                            break;
+                        }
+                    }
+
+                    if (!found)
+                    {
+                        vertexReferences[i] = _points.Count;
+                        _points.Add(new SharedPoint(temp, _points.Count));
+                    }
+
+                    if (autoColor)
+                        verticies[i].Color = new Color(verticies[i].Position);
+                }
+
+                Compile();
+            }
+
+            /// <summary>
+            /// Corrects the polygon in event of any updates to referenced points. Returns true if any corrections necessary.
+            /// </summary>
+            /// <returns></returns>
+            public bool Correct()
+            {
+                if (vertexReferences == null || verticies == null) return false;
+
+                bool ret = false;
+
+                for (int i = 0; i < vertexCount; i++)
+                {
+                    // In the event that this vertex reference is now outside of the point list, get an additive value which we'll subtract from the USE value, and set the reference to the top entry of the list.
+                    // For example, if points to 10 but list now goes up to 5, set ref to 5, temp to (10 - 5) = 5. The list shrunk by 5 meaning the entry this points to (10) has been moved by 5 (5).
+                    // When adding the USE value later, add the temp value (5) to get 0; it wont move now, and points to the correct position.
+
+                    int temp = vertexReferences[i];
+                    if (temp >= _points.Count)
+                    {
+                        vertexReferences[i] = _points.Count - 1;
+                        temp = temp - vertexReferences[i];
+                    }
+                    else
+                    {
+                        temp = 0;
+                    }
+
+                    // If the USE value is nonzero, add the USE value (plus the temp value we specified earlier, since USE will be <0) to correct where this entry points to.
+                    if (_points[vertexReferences[i]].USE < 0)
+                    {
+                        vertexReferences[i] += (_points[vertexReferences[i]].USE + temp);
+                    }
+
+                    // Finally, if an update is necessary, perform the update.
+                    if (_points[vertexReferences[i]].update)
+                    {
+                        verticies[i].Position = _points[vertexReferences[i]].pos - core;
+                        ret = true;
+                    }
+                }
+
+                return ret;
+            }
+
+            /// <summary>
+            /// Recompiles the vertex data
+            /// </summary>
+            public override void Compile()
+            {
+                if (Correct())
+                    base.Compile();
+            }
+
+            /// <summary>
+            /// Triggers a check to figure out which referenced points are no longer used.
+            /// </summary>
+            public void Heartbeat()
+            {
+                for (int i = 0; i < vertexCount; i++)
+                {
+                    _points[vertexReferences[i]].USE++;
+                }
+            }
+
+            public override Vector3 GetVertexPoint(int vertex)
+            {
+                Correct();
+                return _points[vertexReferences[vertex]].pos - core;
+            }
+            public override void SetVertexPoint(int vertex, Vector3 pos)
+            {
+                _points[vertexReferences[vertex]].pos = pos + core;
+                _points[vertexReferences[vertex]].update = true;
+            }
+        }
+        public class SharedPoint
+        {
+            public Vector3 pos;
+            public int ID;
+            public int USE; // We'll use the USE value as a generic counter to use for miscellaneous checks. When removing an entry in a list,
+                            // it can be used to self correct on all polygons that use it (set to a negative value for all that have been moved to the left.
+                            // Self-correcting should be done in a specific procedure which I will denote later.
+            public bool update;
+
+            public SharedPoint(Vector3 p, int i)
+            {
+                ID = i;
+                pos = p;
+
+                USE = 0;
+                update = false;
+            }
+        }
+
+        public const int COMPILE_ROTATION = 1;
+        public const int COMPILE_POLYGONS = 2;
+
+        public List<SharedPoint> points; //This can be unused if you want.
+        private GraphicsDevice _graphics;
+
+        private List<Polygon> _polys;
+
+        public Vector3 position;
+
+        public Vector3 r_X, r_Y, r_Z;
+
+        public VertexModelAdvanced(GraphicsDevice device)
+        {
+            _graphics = device;
+            _polys = new List<Polygon>();
+
+            points = new List<SharedPoint>();
+        }
+
+        /// <summary>
+        /// Adds a basic polygon to the model
+        /// </summary>
+        /// <param name="poly"></param>
+        public void AddBasicPoly(Polygon poly)
+        {
+            _polys.Add(poly);
+        }
+        /// <summary>
+        /// Complicates the given polygon and adds it to the model
+        /// </summary>
+        /// <param name="poly"></param>
+        public void AddComplexPoly(Polygon poly)
+        {
+            _polys.Add(new SharedPolygon(_graphics, poly.vertexCount, poly.primitiveCount, poly.primitiveType, position, points, poly.verticies));
+        }
+        /// <summary>
+        /// Adds a complex polygon to the model.
+        /// </summary>
+        /// <param name="poly"></param>
+        public void AddComplexPoly(SharedPolygon poly)
+        {
+            _polys.Add((Polygon)poly);
+        }
+
+        public Polygon GetPoly(int index)
+        {
+            if (index < 0 || index >= _polys.Count) return null;
+            return _polys[index];
+        }
+        public void RemovePoly(int index)
+        {
+            if (index < 0 || index >= _polys.Count) return;
+            _polys.RemoveAt(index);
+        }
+
+        /// <summary>
+        /// Disposes of all SharedPoints that aren't currently being referenced.
+        /// </summary>
+        public void ClearUnusedReferences()
+        {
+            // Default all USE values to 0.
+            for (int i = 0; i < points.Count; i++)
+            {
+                points[i].USE = 0;
+            }
+
+            // Heartbeat all shardpolygons
+            for (int i = 0; i < _polys.Count; i++)
+            {
+                SharedPolygon temp = _polys[i] as SharedPolygon;
+                if (temp == null) continue;
+
+                temp.Heartbeat();
+            }
+
+            // For each USE value < 0, remove it, decrement REM by 1. Otherwise, set the USE value to the current REM value.
+            int REM = 0;
+            for (int i = 0; i < points.Count; i++)
+            {
+                if (points[i].USE == 0)
+                {
+                    points.RemoveAt(i);
+                    REM--;
+                    i--;
+                    continue;
+                }
+
+                points[i].USE = REM;
+            }
+
+            // Run Correct on all sharedpolygons
+            for (int i = 0; i < _polys.Count; i++)
+            {
+                SharedPolygon temp = _polys[i] as SharedPolygon;
+                if (temp == null) continue;
+
+                temp.Correct();
+            }
+
+            // Default USE back to 0.
+            for (int i = 0; i < points.Count; i++)
+            {
+                points[i].USE = 0;
+            }
+        }
+
+        public void Recompile(int mode)
+        {
+            if ((mode & COMPILE_ROTATION) != 0)
+            {
+                // Compile rotation vectors to a rotation matrix
+            }
+
+            if ((mode & COMPILE_POLYGONS) != 0)
+            {
+                // Compile all polygons
+                for (int i = 0; i < _polys.Count; i++)
+                {
+                    _polys[i].Compile();
+                }
+            }
+        }
+
+        public void Draw(Camera camera)
+        {
+            camera.BindWorldPosition(position);
+            for (int n = 0; n < _polys.Count; n++)
+            {
+                if (!_polys[n].built) continue;
+                if (_polys[n].textureBuilt)
+                    camera.BindTexture(_polys[n].texture);
+                else
+                    camera.BindTexture();
+
+                _graphics.SetVertexBuffer(_polys[n].buffer);
+                foreach (EffectPass pass in camera.effect.CurrentTechnique.Passes)
+                {
+                    pass.Apply();
+                    _graphics.DrawPrimitives(_polys[n].primitiveType, 0, _polys[n].primitiveCount);
+                }
+            }
+        }
+        public void Draw(Camera camera, int n)
+        {
+            if (n < 0 || n >= _polys.Count) return;
+            if (!_polys[n].built) return;
+
+            camera.BindWorldPosition(position);
+
+            if (_polys[n].textureBuilt)
+                camera.BindTexture(_polys[n].texture);
+            else
+                camera.BindTexture();
+            _graphics.SetVertexBuffer(_polys[n].buffer);
+            foreach (EffectPass pass in camera.effect.CurrentTechnique.Passes)
+            {
+                pass.Apply();
+                _graphics.DrawPrimitives(_polys[n].primitiveType, 0, _polys[n].primitiveCount);
+            }
+        }
+
+        public static VertexModelAdvanced CreateGenericCuboid(GraphicsDevice device, bool complex)
+        {
+            VertexModelAdvanced temp = new VertexModelAdvanced(device);
+
+            //0: heading +x, yz
+            if (!complex)
+                temp.AddBasicPoly(new Polygon(device, 4, 2, PrimitiveType.TriangleStrip, Generate4Point(Vector3.UnitX, Vector3.UnitY, Vector3.UnitZ)));
+            else
+                temp.AddComplexPoly(new Polygon(device, 4, 2, PrimitiveType.TriangleStrip, Generate4Point(Vector3.UnitX, Vector3.UnitY, Vector3.UnitZ)));
+
+            //1: heading -x, yz
+            if (!complex)
+                temp.AddBasicPoly(new Polygon(device, 4, 2, PrimitiveType.TriangleStrip, Generate4Point(Vector3.UnitX * -1, Vector3.UnitY, Vector3.UnitZ)));
+            else
+                temp.AddComplexPoly(new Polygon(device, 4, 2, PrimitiveType.TriangleStrip, Generate4Point(Vector3.UnitX * -1, Vector3.UnitY, Vector3.UnitZ)));
+
+            //2: heading +y, xz
+            if (!complex)
+                temp.AddBasicPoly(new Polygon(device, 4, 2, PrimitiveType.TriangleStrip, Generate4Point(Vector3.UnitY, Vector3.UnitX, Vector3.UnitZ)));
+            else
+                temp.AddComplexPoly(new Polygon(device, 4, 2, PrimitiveType.TriangleStrip, Generate4Point(Vector3.UnitY, Vector3.UnitX, Vector3.UnitZ)));
+
+            //3: heading -y, xz
+            if (!complex)
+                temp.AddBasicPoly(new Polygon(device, 4, 2, PrimitiveType.TriangleStrip, Generate4Point(Vector3.UnitY * -1, Vector3.UnitX, Vector3.UnitZ)));
+            else
+                temp.AddComplexPoly(new Polygon(device, 4, 2, PrimitiveType.TriangleStrip, Generate4Point(Vector3.UnitY * -1, Vector3.UnitX, Vector3.UnitZ)));
+
+            //4: heading +z, xy
+            if (!complex)
+                temp.AddBasicPoly(new Polygon(device, 4, 2, PrimitiveType.TriangleStrip, Generate4Point(Vector3.UnitZ, Vector3.UnitX, Vector3.UnitY)));
+            else
+                temp.AddComplexPoly(new Polygon(device, 4, 2, PrimitiveType.TriangleStrip, Generate4Point(Vector3.UnitZ, Vector3.UnitX, Vector3.UnitY)));
+
+            //5: heading -z, xy
+            if (!complex)
+                temp.AddBasicPoly(new Polygon(device, 4, 2, PrimitiveType.TriangleStrip, Generate4Point(Vector3.UnitZ * -1, Vector3.UnitX, Vector3.UnitY)));
+            else
+                temp.AddComplexPoly(new Polygon(device, 4, 2, PrimitiveType.TriangleStrip, Generate4Point(Vector3.UnitZ * -1, Vector3.UnitX, Vector3.UnitY)));
+
+            temp.r_X = Vector3.UnitX;
+            temp.r_Y = Vector3.UnitY;
+            temp.r_Z = Vector3.UnitZ;
+
+            temp.Recompile(COMPILE_POLYGONS & COMPILE_ROTATION);
+
+            return temp;
+        }
+        internal static VertexPositionColorTexture[] Generate4Point(Vector3 dir, Vector3 a, Vector3 b)
+        {
+            VertexPositionColorTexture[] verts = new VertexPositionColorTexture[4];
+
+            verts[0] = new VertexPositionColorTexture(dir + (a) + (b), new Color(dir + a + b), new Vector2(0, 0));
+            verts[1] = new VertexPositionColorTexture(dir + (-a) + (b), new Color(dir - a + b), new Vector2(1, 0));
+            verts[2] = new VertexPositionColorTexture(dir + (a) + (-b), new Color(dir + a - b), new Vector2(0, 1));
+            verts[3] = new VertexPositionColorTexture(dir + (-a) + (-b), new Color(dir - a - b), new Vector2(1, 1));
+
+            return verts;
+        }
+        internal static VertexPositionColorTexture[] Generate3Point(Vector3 dir, Vector3 a, Vector3 b)
+        {
+            VertexPositionColorTexture[] verts = new VertexPositionColorTexture[3];
+
+            verts[0] = new VertexPositionColorTexture(dir + (a) + (b), new Color(dir + a + b), new Vector2(0, 0));
+            verts[1] = new VertexPositionColorTexture(dir + (-a) + (b), new Color(dir - a + b), new Vector2(1, 0));
+            verts[2] = new VertexPositionColorTexture(dir + (a) + (-b), new Color(dir + a - b), new Vector2(0, 1));
+
+            return verts;
+        }
+        internal static VertexPositionColorTexture[] Generate4Point(Vector3 dir, Vector3 a, Vector3 b, Color over)
+        {
+            VertexPositionColorTexture[] verts = new VertexPositionColorTexture[4];
+
+            verts[0] = new VertexPositionColorTexture(dir + (a) + (b), over, new Vector2(0, 0));
+            verts[1] = new VertexPositionColorTexture(dir + (-a) + (b), over, new Vector2(1, 0));
+            verts[2] = new VertexPositionColorTexture(dir + (a) + (-b), over, new Vector2(0, 1));
+            verts[3] = new VertexPositionColorTexture(dir + (-a) + (-b), over, new Vector2(1, 1));
+
+            return verts;
+        }
+        internal static VertexPositionColorTexture[] Generate3Point(Vector3 dir, Vector3 a, Vector3 b, Color over)
+        {
+            VertexPositionColorTexture[] verts = new VertexPositionColorTexture[3];
+
+            verts[0] = new VertexPositionColorTexture(dir + (a) + (b), over, new Vector2(0, 0));
+            verts[1] = new VertexPositionColorTexture(dir + (-a) + (b), over, new Vector2(1, 0));
+            verts[2] = new VertexPositionColorTexture(dir + (a) + (-b), over, new Vector2(0, 1));
+
+            return verts;
+        }
+
+    }
     public class ButtonWidget2D
     {
         public enum ButtonMode
@@ -873,6 +1476,7 @@ namespace core.src
         public int ID => id;
 
         public VertexModel physical;
+        public string[] textures;
 
         public List<VertexModel.TexturedPolygon> modelPolys;
 
@@ -1363,6 +1967,8 @@ namespace core.src
 
         protected PropertyViewer brushPropertyViewer;
 
+        protected PropertyViewer brushPolygonPropertyViewer;
+
         protected VertexModel[] xyzPlanes;
         protected Texture2D circleTex;
         protected Vector2 circleOffset;
@@ -1378,13 +1984,18 @@ namespace core.src
             brushContentsList = new ListViewer<VertexModel.TexturedPolygon>(new List<VertexModel.TexturedPolygon>(), 10, p, s, Program.Game.Content);
 
             p.Y += Program.InternalScreen.Y / 3f;
+            s.Y /= 2;
             polyList = new ListViewer<VertexPositionColorTexture>(new List<VertexPositionColorTexture>(), 10, p, s, Program.Game.Content);
             polyList.SetStringFunc((VertexPositionColorTexture ent, int i) =>
             {
                 return $"{i}: ({Program.Vec3ToString(ent.Position)})";
             });
 
-            p.Y += Program.InternalScreen.Y / 3f;
+            p.Y += (Program.InternalScreen.Y / 3f) / 2;
+            brushPolygonPropertyViewer = new PropertyViewer(_graphics, p, s, 0);
+
+            s.Y *= 2; 
+            p.Y += (Program.InternalScreen.Y / 3f) / 2;
 
             vertexPropertyViewer = new PropertyViewer(_graphics, p, s, 100);
 
@@ -1687,6 +2298,42 @@ namespace core.src
 
         public void SetupBrushProperty()
         {
+            Vector2 pos = new Vector2(15, 30);
+            Vector2 siz = new Vector2(250, 30);
+
+            brushPolygonPropertyViewer.AddPropertyWidget(new PropertyViewer.PropertyWidget(_graphics, pos, siz, "Texture", (PropertyViewer.PropertyWidget parent) => //get
+            {
+                if (brushContentsList.curIndex == -1 || library.brushViewer.curIndex == -1)
+                {
+                    parent.DisplayedText = "UNDF";
+                    return -1;
+                }
+                if (!CurrentBrush.modelPolys[brushContentsList.curIndex].textureBuilt)
+                {
+                    parent.DisplayedText = "Default";
+                }
+                else
+                {
+                    parent.DisplayedText = CurrentBrush.modelPolys[brushContentsList.curIndex].texture.Name;
+                }
+                return 0;
+            }, (PropertyViewer.PropertyWidget parent) => //set
+            {
+                if (brushContentsList.curIndex == -1 || library.brushViewer.curIndex == -1) return -1;
+                if (parent.TempText.ToLower() == "default")
+                {
+                    CurrentBrush.modelPolys[brushContentsList.curIndex].textureBuilt = false;
+                    return 0;
+                }
+                try
+                {
+                    CurrentBrush.modelPolys[brushContentsList.curIndex].texture = Program.Game.Content.Load<Texture2D>(parent.TempText);
+                    CurrentBrush.modelPolys[brushContentsList.curIndex].textureBuilt = true;
+                    parent.TempText = "";
+                }
+                catch (Exception e) { }
+                return 0;
+            }));
 
         }
 
@@ -1767,11 +2414,62 @@ namespace core.src
             {
                 vertexPropertyViewer.Poll();
             }
+            if (brushContentsList.curIndex != -1)
+            {
+                brushPolygonPropertyViewer.Poll();
+            }
 
             //brush contents delete/create polys
-            if (brushContentsList.ButtonActive) 
+            if (brushContentsList.ButtonActive)
             {
+                if (brushContentsList.curIndex != -1 && (Input.IsKeyDown(Keys.LeftControl) || Input.IsKeyDown(Keys.RightControl)) && Input.IsKeyPressed(Keys.Delete)) //deletes
+                {
+                    VertexModel temp = CurrentBrush.physical;
+                    VertexModel.TexturedPolygon[] polyNew = new VertexModel.TexturedPolygon[temp.polygons.Length - 1];
+                    for (int i = 0, ext = 0; i < polyNew.Length; i++, ext++)
+                    {
+                        if (ext == brushContentsList.curIndex) ext++;
+                        polyNew[i] = temp.polygons[ext];
+                    }
+                    temp.polygons = polyNew;
 
+                    CurrentBrush.Bind(temp);
+                    CurrentBrush.physical.Recompile(VertexModel.COMPILE_POLYGONS);
+                    brushContentsList.curIndex = -1;
+                    selVert = -1;
+                }
+
+                if (Input.IsKeyDown(Keys.LeftControl) || Input.IsKeyDown(Keys.RightControl)) //creates
+                {
+                    VertexModel.TexturedPolygon insert = null;
+                    bool y = false;
+                    if (Input.IsKeyPressed(Keys.D3))
+                    {
+                        y = true;
+                        insert = new VertexModel.TexturedPolygon(_graphics, 3, 1, PrimitiveType.TriangleList);
+                        insert.verticies = VertexModel.Generate3Point(Vector3.UnitZ, Vector3.UnitX, Vector3.UnitY);
+                    }
+                    else if (Input.IsKeyPressed(Keys.D4))
+                    {
+                        y = true;
+                        insert = new VertexModel.TexturedPolygon(_graphics, 4, 2, PrimitiveType.TriangleStrip);
+                        insert.verticies = VertexModel.Generate4Point(Vector3.UnitZ, Vector3.UnitX, Vector3.UnitY);
+                    }
+
+                    if (y)
+                    {
+                        VertexModel temp = CurrentBrush.physical;
+                        VertexModel.TexturedPolygon[] polyNew = new VertexModel.TexturedPolygon[temp.polygons.Length + 1];
+                        for (int i = 0; i < temp.polygons.Length; i++)
+                        {
+                            polyNew[i] = temp.polygons[i];
+                        }
+                        polyNew[temp.polygons.Length] = insert;
+                        temp.polygons = polyNew;
+                        CurrentBrush.Bind(temp);
+                        CurrentBrush.physical.Recompile(VertexModel.COMPILE_POLYGONS);
+                    }
+                }
             }
         }
         public override void AddlRender()
@@ -1785,6 +2483,9 @@ namespace core.src
 
             if (selVert != -1)
                 vertexPropertyViewer.Render(false);
+
+            if (brushContentsList.curIndex != -1)
+                brushPolygonPropertyViewer.Render(false);
 
             if (lastIndexBrush != -1)
                 polyList.Render(false);
