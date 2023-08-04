@@ -3,13 +3,9 @@ using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using prog;
-using SharpDX.MediaFoundation;
-using SharpDX.XAudio2;
 using System;
 using System.Collections.Generic;
-using System.Runtime.CompilerServices;
-using static core.src.VertexModel;
-using static core.src.VertexModelAdvanced;
+using static core.src.PropertyViewer;
 
 namespace core.src
 {
@@ -68,210 +64,7 @@ namespace core.src
             curViewer.Destroy();
         }
     }
-    
-    public class VertexModel
-    {
-        public static int COMPILE_ROTATION = 1;
-        public static int COMPILE_POLYGONS = 2;
-        private GraphicsDevice _device;
-        public Vector3 position;
 
-        public Vector3 rotation_x, rotation_y, rotation_z;
-
-        private Matrix rotmat;
-
-        public TexturedPolygon[] polygons;   
-        public class TexturedPolygon
-        {
-            public VertexPositionColorTexture[] verticies;
-            public Texture2D texture;
-            public bool textureBuilt;
-            public VertexBuffer buffer;
-            public int primitiveCount;
-            public PrimitiveType primitiveType;
-
-            public bool built;
-
-            private GraphicsDevice _device;
-
-            private static int id_master = 0;
-            private int id;
-
-            public TexturedPolygon(GraphicsDevice device, int vertexcount, int primitives, PrimitiveType type)
-            {
-                id = id_master++;
-                built = false;
-                _device = device;
-
-                verticies = new VertexPositionColorTexture[vertexcount];
-                primitiveCount = primitives;
-                primitiveType = type;
-
-                textureBuilt = false;
-
-                buffer = new VertexBuffer(_device, typeof(VertexPositionColorTexture), verticies.Length, BufferUsage.WriteOnly);
-            }
-
-            public void Recompile()
-            {
-                buffer.SetData<VertexPositionColorTexture>(verticies);
-                built = true;
-            }
-
-            public override string ToString()
-            {
-                return $"Polygon#{id}";
-            }
-        }
-
-        public VertexModel(GraphicsDevice device, int pc)
-        {
-            _device = device;
-            position = Vector3.Zero;
-            polygons = new TexturedPolygon[pc];
-
-            rotation_x = Vector3.UnitX;
-            rotation_y = Vector3.UnitY;
-            rotation_z = Vector3.UnitZ;
-        }
-        public void Recompile(int mode)
-        {
-            if ((mode & COMPILE_ROTATION) != 0)
-            {
-                //Recomp rotation vectors to a rotation matrix
-            }
-
-            if ((mode & COMPILE_POLYGONS) != 0)
-            {
-                //Recomp all polygons
-                for (int i = 0; i < polygons.Length; i++)
-                {
-                    polygons[i].Recompile();
-                }
-            }
-        }
-        public void Draw(Camera camera)
-        {
-            camera.BindWorldPosition(position);
-            for (int n = 0; n < polygons.Length; n++)
-            {
-                if (!polygons[n].built) continue;
-                if (polygons[n].textureBuilt)
-                    camera.BindTexture(polygons[n].texture);
-                else
-                    camera.BindTexture();
-                _device.SetVertexBuffer(polygons[n].buffer);
-                foreach (EffectPass pass in camera.effect.CurrentTechnique.Passes)
-                {
-                    pass.Apply();
-                    _device.DrawPrimitives(polygons[n].primitiveType, 0, polygons[n].primitiveCount);
-                }
-            }
-        }
-        public void Draw(Camera camera, int n)
-        {
-            camera.BindWorldPosition(position);
-            if (n < 0 || n >= polygons.Length) return;
-
-            if (!polygons[n].built) return;
-            if (polygons[n].textureBuilt)
-                camera.BindTexture(polygons[n].texture);
-            else
-                camera.BindTexture();
-            _device.SetVertexBuffer(polygons[n].buffer);
-            foreach (EffectPass pass in camera.effect.CurrentTechnique.Passes)
-            {
-                pass.Apply();
-                _device.DrawPrimitives(polygons[n].primitiveType, 0, polygons[n].primitiveCount);
-            }
-        }
-
-        public static VertexModel CreateGeneric(GraphicsDevice device)
-        {
-            VertexModel temp = new VertexModel(device, 6);
-
-            //0: heading +x, yz
-            temp.polygons[0] = new TexturedPolygon(device, 4, 2, PrimitiveType.TriangleStrip);
-            temp.polygons[0].verticies = Generate4Point(Vector3.UnitX, Vector3.UnitY, Vector3.UnitZ);
-
-            //1: heading -x, yz
-            temp.polygons[1] = new TexturedPolygon(device, 4, 2, PrimitiveType.TriangleStrip);
-            temp.polygons[1].verticies = Generate4Point(Vector3.UnitX * -1, Vector3.UnitY, Vector3.UnitZ);
-
-            //2: heading +y, xz
-            temp.polygons[2] = new TexturedPolygon(device, 4, 2, PrimitiveType.TriangleStrip);
-            temp.polygons[2].verticies = Generate4Point(Vector3.UnitY, Vector3.UnitX, Vector3.UnitZ);
-
-            //3: heading -y, xz
-            temp.polygons[3] = new TexturedPolygon(device, 4, 2, PrimitiveType.TriangleStrip);
-            temp.polygons[3].verticies = Generate4Point(Vector3.UnitY * -1, Vector3.UnitX, Vector3.UnitZ);
-
-            //4: heading +z, xy
-            temp.polygons[4] = new TexturedPolygon(device, 4, 2, PrimitiveType.TriangleStrip);
-            temp.polygons[4].verticies = Generate4Point(Vector3.UnitZ, Vector3.UnitX, Vector3.UnitY);
-
-            //5: heading -z, xy
-            temp.polygons[5] = new TexturedPolygon(device, 4, 2, PrimitiveType.TriangleStrip);
-            temp.polygons[5].verticies = Generate4Point(Vector3.UnitZ * -1, Vector3.UnitX, Vector3.UnitY);
-
-            temp.rotation_x = Vector3.UnitX;
-            temp.rotation_y = Vector3.UnitY;
-            temp.rotation_z = Vector3.UnitZ;
-
-            temp.Recompile(COMPILE_POLYGONS);
-
-            return temp;
-        }
-        internal static VertexPositionColorTexture[] Generate4Point(Vector3 dir, Vector3 a, Vector3 b)
-        {
-            VertexPositionColorTexture[] verts = new VertexPositionColorTexture[4];
-
-            verts[0] = new VertexPositionColorTexture(dir + ( a) + ( b), ColorByVectors(dir, a, b), new Vector2(0, 0));
-            verts[1] = new VertexPositionColorTexture(dir + (-a) + ( b), ColorByVectors(dir, -a, b), new Vector2(1, 0));
-            verts[2] = new VertexPositionColorTexture(dir + ( a) + (-b), ColorByVectors(dir, a, -b), new Vector2(0, 1));
-            verts[3] = new VertexPositionColorTexture(dir + (-a) + (-b), ColorByVectors(dir, -a, -b), new Vector2(1, 1));
-
-            return verts;
-        }
-        internal static VertexPositionColorTexture[] Generate3Point(Vector3 dir, Vector3 a, Vector3 b)
-        {
-            VertexPositionColorTexture[] verts = new VertexPositionColorTexture[3];
-
-            verts[0] = new VertexPositionColorTexture(dir + (a) + (b), ColorByVectors(dir, a, b), new Vector2(0, 0));
-            verts[1] = new VertexPositionColorTexture(dir + (-a) + (b), ColorByVectors(dir, -a, b), new Vector2(1, 0));
-            verts[2] = new VertexPositionColorTexture(dir + (a) + (-b), ColorByVectors(dir, a, -b), new Vector2(0, 1));
-
-            return verts;
-        }
-        internal static VertexPositionColorTexture[] Generate4Point(Vector3 dir, Vector3 a, Vector3 b, Color over)
-        {
-            VertexPositionColorTexture[] verts = new VertexPositionColorTexture[4];
-
-            verts[0] = new VertexPositionColorTexture(dir + (a) + (b), over, new Vector2(0, 0));
-            verts[1] = new VertexPositionColorTexture(dir + (-a) + (b), over, new Vector2(1, 0));
-            verts[2] = new VertexPositionColorTexture(dir + (a) + (-b), over, new Vector2(0, 1));
-            verts[3] = new VertexPositionColorTexture(dir + (-a) + (-b), over, new Vector2(1, 1));
-
-            return verts;
-        }
-        internal static VertexPositionColorTexture[] Generate3Point(Vector3 dir, Vector3 a, Vector3 b, Color over)
-        {
-            VertexPositionColorTexture[] verts = new VertexPositionColorTexture[3];
-
-            verts[0] = new VertexPositionColorTexture(dir + (a) + (b), over, new Vector2(0, 0));
-            verts[1] = new VertexPositionColorTexture(dir + (-a) + (b), over, new Vector2(1, 0));
-            verts[2] = new VertexPositionColorTexture(dir + (a) + (-b), over, new Vector2(0, 1));
-
-            return verts;
-        }
-        internal static Color ColorByVectors(Vector3 a, Vector3 b, Vector3 c)
-        {
-            Vector3 sum = a + b + c;
-            //sum += Vector3.One;
-            //sum /= 2;
-            return new Color(sum);
-        }
-    }
     /// <summary>
     /// A replacement for typical VertexModels
     /// </summary>
@@ -371,6 +164,18 @@ namespace core.src
             public virtual void SetVertexTexturePos(int vertex, Vector2 pos)
             {
                 verticies[vertex].TextureCoordinate = pos;
+            }
+
+            public override string ToString()
+            {
+                return $"{id}";
+            }
+
+            public void Destroy()
+            {
+                buffer.Dispose();
+                if (!texture.IsDisposed)
+                    texture.Dispose();
             }
         }
         public class SharedPolygon : Polygon
@@ -543,8 +348,8 @@ namespace core.src
             /// </summary>
             public override void Compile()
             {
-                if (Correct())
-                    base.Compile();
+                Correct();
+                base.Compile();
             }
 
             /// <summary>
@@ -567,6 +372,11 @@ namespace core.src
             {
                 _points[vertexReferences[vertex]].pos = pos + core;
                 _points[vertexReferences[vertex]].update = true;
+            }
+
+            public override string ToString()
+            {
+                return $"C:{id}";
             }
         }
         public class SharedPoint
@@ -594,6 +404,7 @@ namespace core.src
         public List<SharedPoint> points; //This can be unused if you want.
         private GraphicsDevice _graphics;
 
+        public List<Polygon> Polygons => _polys;
         private List<Polygon> _polys;
 
         public Vector3 position;
@@ -606,6 +417,14 @@ namespace core.src
             _polys = new List<Polygon>();
 
             points = new List<SharedPoint>();
+        }
+
+        public void Destroy()
+        {
+            for (int i = 0; i < _polys.Count; i++)
+            {
+                _polys[i].Destroy();
+            }
         }
 
         /// <summary>
@@ -709,6 +528,11 @@ namespace core.src
                 {
                     _polys[i].Compile();
                 }
+
+                for (int i = 0; i < points.Count; i++)
+                {
+                    points[i].update = false;
+                }
             }
         }
 
@@ -723,6 +547,7 @@ namespace core.src
                 else
                     camera.BindTexture();
 
+                //_polys[n].Compile();
                 _graphics.SetVertexBuffer(_polys[n].buffer);
                 foreach (EffectPass pass in camera.effect.CurrentTechnique.Passes)
                 {
@@ -798,6 +623,82 @@ namespace core.src
 
             return temp;
         }
+        public static VertexModelAdvanced CreateGenericCuboid(GraphicsDevice device, bool complex, Vector3 dims)
+        {
+            VertexModelAdvanced temp = new VertexModelAdvanced(device);
+
+            //0: heading +x, yz
+            if (!complex)
+                temp.AddBasicPoly(new Polygon(device, 4, 2, PrimitiveType.TriangleStrip, Generate4Point(Vector3.UnitX * dims, Vector3.UnitY * dims, Vector3.UnitZ * dims)));
+            else
+                temp.AddComplexPoly(new Polygon(device, 4, 2, PrimitiveType.TriangleStrip, Generate4Point(Vector3.UnitX * dims, Vector3.UnitY * dims, Vector3.UnitZ * dims)));
+
+            //1: heading -x, yz
+            if (!complex)
+                temp.AddBasicPoly(new Polygon(device, 4, 2, PrimitiveType.TriangleStrip, Generate4Point(Vector3.UnitX * -1 * dims, Vector3.UnitY * dims, Vector3.UnitZ * dims)));
+            else
+                temp.AddComplexPoly(new Polygon(device, 4, 2, PrimitiveType.TriangleStrip, Generate4Point(Vector3.UnitX * -1 * dims, Vector3.UnitY * dims, Vector3.UnitZ * dims)));
+
+            //2: heading +y, xz
+            if (!complex)
+                temp.AddBasicPoly(new Polygon(device, 4, 2, PrimitiveType.TriangleStrip, Generate4Point(Vector3.UnitY * dims, Vector3.UnitX * dims, Vector3.UnitZ * dims)));
+            else
+                temp.AddComplexPoly(new Polygon(device, 4, 2, PrimitiveType.TriangleStrip, Generate4Point(Vector3.UnitY * dims, Vector3.UnitX * dims, Vector3.UnitZ * dims)));
+
+            //3: heading -y, xz
+            if (!complex)
+                temp.AddBasicPoly(new Polygon(device, 4, 2, PrimitiveType.TriangleStrip, Generate4Point(Vector3.UnitY * -1 * dims, Vector3.UnitX * dims, Vector3.UnitZ * dims)));
+            else
+                temp.AddComplexPoly(new Polygon(device, 4, 2, PrimitiveType.TriangleStrip, Generate4Point(Vector3.UnitY * -1 * dims, Vector3.UnitX * dims, Vector3.UnitZ * dims)));
+
+            //4: heading +z, xy
+            if (!complex)
+                temp.AddBasicPoly(new Polygon(device, 4, 2, PrimitiveType.TriangleStrip, Generate4Point(Vector3.UnitZ * dims, Vector3.UnitX * dims, Vector3.UnitY * dims)));
+            else
+                temp.AddComplexPoly(new Polygon(device, 4, 2, PrimitiveType.TriangleStrip, Generate4Point(Vector3.UnitZ * dims, Vector3.UnitX * dims, Vector3.UnitY * dims)));
+
+            //5: heading -z, xy
+            if (!complex)
+                temp.AddBasicPoly(new Polygon(device, 4, 2, PrimitiveType.TriangleStrip, Generate4Point(Vector3.UnitZ * -1 * dims, Vector3.UnitX * dims, Vector3.UnitY * dims)));
+            else
+                temp.AddComplexPoly(new Polygon(device, 4, 2, PrimitiveType.TriangleStrip, Generate4Point(Vector3.UnitZ * -1 * dims, Vector3.UnitX * dims, Vector3.UnitY * dims)));
+
+            temp.r_X = Vector3.UnitX;
+            temp.r_Y = Vector3.UnitY;
+            temp.r_Z = Vector3.UnitZ;
+
+            temp.Recompile(COMPILE_POLYGONS & COMPILE_ROTATION);
+
+            return temp;
+        }
+
+        public static VertexModelAdvanced CreateGenericMesh(GraphicsDevice device, bool complex, float xRange, float zRange, float step)
+        {
+            VertexModelAdvanced temp = new VertexModelAdvanced(device);
+
+            for (float x = -xRange; x < xRange; x += step)
+            {
+                for (float z = -zRange; z < zRange; z += step)
+                {
+                    Vector3[] autoPoints =
+                    {
+                        new Vector3(x, 0, z),
+                        new Vector3(x+step, 0, z),
+                        new Vector3(x, 0, z+step),
+                        new Vector3(x+step, 0, z+step)
+                    };
+
+                    Polygon tPoly = new Polygon(device, 4, 2, PrimitiveType.TriangleStrip, autoPoints, true);
+                    if (complex)
+                        temp.AddComplexPoly(tPoly);
+                    else
+                        temp.AddBasicPoly(tPoly);
+                }
+            }
+
+            return temp;
+        }
+
         internal static VertexPositionColorTexture[] Generate4Point(Vector3 dir, Vector3 a, Vector3 b)
         {
             VertexPositionColorTexture[] verts = new VertexPositionColorTexture[4];
@@ -840,7 +741,6 @@ namespace core.src
 
             return verts;
         }
-
     }
     public class ButtonWidget2D
     {
@@ -863,6 +763,8 @@ namespace core.src
 
         public Vector2 multscale;
         public Vector2 offset;
+
+        public bool EscapeKey;
 
         public ButtonWidget2D(ButtonMode mode, Vector2 screenPos, Vector2 dimensions)
         {
@@ -951,6 +853,8 @@ namespace core.src
                     {
                         if (Input.IsMousePressed(Input.MouseButton.LeftMouse))
                             bdown = true;
+                        if (EscapeKey && Input.IsMousePressed(Input.MouseButton.RightMouse))
+                            bdown = false;
                     }
                     break;
             }
@@ -959,6 +863,10 @@ namespace core.src
         public void Release()
         {
             bdown = false;
+        }
+        public void SetState(bool state)
+        {
+            bdown = state;
         }
 
         public void Destroy()
@@ -1129,6 +1037,11 @@ namespace core.src
             if (scrolledOffset < 0) scrolledOffset = 0;
 
             bool mdown = Input.IsMousePressed(Input.MouseButton.LeftMouse);
+            if (Input.IsMousePressed(Input.MouseButton.RightMouse))
+            {
+                curIndex = -1;
+                return;
+            }
             Vector2 pos = Input.GetMousePosition() - position;
 
             if (mdown && pos.X <= size.X)
@@ -1274,9 +1187,11 @@ namespace core.src
                 setup(device, pos, siz, true, header, get, set);
             }
 
-            public void Poll(Vector2 mpos)
+            public virtual void Poll(Vector2 mpos)
             {
                 button.Poll(mpos);
+
+
 
                 if (button.ButtonDown)
                 {
@@ -1328,7 +1243,7 @@ namespace core.src
                     TempText = "";
                 }
             }
-            public void Render(SpriteBatch _sprites, SpriteFont font, Vector2 origin, int ySub, Vector2 within)
+            public virtual void Render(SpriteBatch _sprites, SpriteFont font, Vector2 origin, int ySub, Vector2 within)
             {
                 Vector2 renPos = position + origin;
                 renPos.Y -= ySub;
@@ -1350,7 +1265,7 @@ namespace core.src
 
                 if (HasHeader)
                 {
-                    renPos.Y -= 25;
+                    renPos.Y -= 30;
                     _sprites.DrawString(font, HeaderText, renPos, Color.Black);
                 }
 
@@ -1364,6 +1279,104 @@ namespace core.src
             {
                 widget.DisplayedText = widget.TempText;
                 return 0;
+            }
+
+            public class ButtonWidget : PropertyWidget
+            {
+                public bool State;
+                public bool DoText;
+                public string HighText;
+                public string LowText;
+
+                public ButtonWidget(GraphicsDevice graphics, Vector2 pos, Vector2 siz) : base(graphics, pos, siz)
+                {
+                    State = false;
+
+                    rect.Dispose();
+
+                    rect = new Texture2D(_graphics, (int)siz.X, (int)siz.Y);
+
+                    Color[] dat = new Color[(int)siz.X * (int)siz.Y];
+                    for (int i = 0; i < dat.Length; i++)
+                    {
+                        dat[i] = Color.White;
+                    }
+                    rect.SetData(dat);
+
+                    button.mode = ButtonWidget2D.ButtonMode.Toggle;
+
+                    getStr = getbool;
+                    attSetStr = setbool;
+                }
+                public ButtonWidget(GraphicsDevice graphics, Vector2 pos, Vector2 siz, Func<PropertyWidget, int> get, Func<PropertyWidget, int> set) : this(graphics, pos, siz)
+                {
+                    getStr = get;
+                    attSetStr = set;
+                }
+                public ButtonWidget(GraphicsDevice device, Vector2 pos, Vector2 siz, string header, Func<PropertyWidget, int> get, Func<PropertyWidget, int> set) : this(device, pos, siz, get, set)
+                {
+                    HeaderText = header;
+                    HasHeader = true;
+                }
+
+                bool prev;
+                public override void Poll(Vector2 mpos)
+                {
+                    prev = button.ButtonDown;
+                    button.Poll(mpos);
+                    getStr(this);
+
+                    if (button.ButtonDown != prev)
+                    {
+                        attSetStr(this);
+                        button.SetState(State);
+                    }
+                }
+
+                public override void Render(SpriteBatch _sprites, SpriteFont font, Vector2 origin, int ySub, Vector2 within)
+                {
+                    Vector2 renPos = position + origin;
+                    renPos.Y -= ySub;
+
+                    Vector2 temp = renPos - origin;
+                    if (temp.X < 0 || temp.Y < 0 || temp.X >= within.X - size.X || temp.Y >= within.Y - size.Y) return;
+
+                    if (State)
+                        _sprites.Draw(rect, renPos, Color.DarkSlateGray);
+                    else
+                        _sprites.Draw(rect, renPos, Color.Gray);
+
+                    renPos.X += 5;
+                    renPos.Y += 5;
+
+                    if (DoText)
+                    {
+                        if (State)
+                            _sprites.DrawString(font, HighText, renPos, Color.White);
+                        else
+                            _sprites.DrawString(font, LowText, renPos, Color.White);
+                    }
+
+                    if (HasHeader)
+                    {
+                        renPos.Y -= 30;
+                        _sprites.DrawString(font, HeaderText, renPos, Color.Black);
+                    }
+                }
+
+                private int setbool(PropertyWidget widg)
+                {
+                    ButtonWidget temp = widg as ButtonWidget;
+                    if (temp == null) return 0;
+                    temp.State = !temp.State;
+                    return 0;
+                }
+                private int getbool(PropertyWidget widg)
+                {
+                    ButtonWidget temp = widg as ButtonWidget;
+                    if (temp == null) return 0;
+                    return 0;
+                }
             }
         }
 
@@ -1475,40 +1488,25 @@ namespace core.src
         private static int id_const;
         public int ID => id;
 
-        public VertexModel physical;
-        public string[] textures;
-
-        public List<VertexModel.TexturedPolygon> modelPolys;
+        public VertexModelAdvanced physical;
+        public string name;
 
         //Add all details here
 
         public Brush()
         {
             id = id_const++;
-            modelPolys = new List<VertexModel.TexturedPolygon>();
+            name = "Brush";
         }
 
-        public void Bind(VertexModel mod)
+        public void Bind(VertexModelAdvanced mod)
         {
-            modelPolys.Clear();
-            for (int i = 0; i < mod.polygons.Length; i++)
-            {
-                modelPolys.Add(mod.polygons[i]);
-            }
             physical = mod;
-        }
-
-        /// <summary>
-        /// Updates the physical model to be equivalent 
-        /// </summary>
-        public void Correct()
-        {
-
         }
 
         public override string ToString()
         {
-            return $"{ID}";
+            return $"({ID}) {name}";
         }
     }
     public class BrushLibrary : ResourceInterface
@@ -1562,15 +1560,6 @@ namespace core.src
 
             if (button.ButtonDown)
             {
-                if (Input.IsKeyPressed(Keys.N)) //generate fresh cuboid brush
-                {
-                    VertexModel temp = VertexModel.CreateGeneric(_graphics);
-                    Brush brush = new Brush();
-                    brush.Bind(temp);
-
-                    brushes.Add(brush);
-                }
-
                 if (Input.IsKeyPressed(Keys.Delete) && (Input.IsKeyDown(Keys.LeftControl) || Input.IsKeyDown(Keys.RightControl)))
                 {
                     if (brushViewer.curIndex != -1)
@@ -1660,6 +1649,10 @@ namespace core.src
         protected SpriteFont font;
         internal static DepthStencilState _dss = new DepthStencilState() { DepthBufferEnable = true, DepthBufferFunction = CompareFunction.Less };
 
+        public const int ATTENTION_UNFOCUSED = 0;
+        public int Attention_Level = 0;
+        public bool OutlineShapes = false;
+
         //RENDER TARGET DEETS
         public class PerspectiveViewerWindow
         {
@@ -1672,6 +1665,7 @@ namespace core.src
             public float Range, Aim;
 
             public Vector3 Local_X, Local_Y, Local_Z, Position;
+            public Vector2 WindowScale;
             public Vector3 Flatten;
 
             private GraphicsDevice _graphics;
@@ -1697,6 +1691,8 @@ namespace core.src
 
                 Position = Vector3.Zero;
 
+                WindowScale = Vector2.One * 10;
+
                 Aim = 0;
                 Range = 1;
             }
@@ -1721,6 +1717,8 @@ namespace core.src
                 Local_Z = f;
                 Local_Y = u;
 
+                WindowScale = Vector2.One * 10;
+
                 Flatten = Vector3.One - f;
 
                 Camera.TargetUp = Local_Y;
@@ -1728,6 +1726,24 @@ namespace core.src
                 Camera.Position = Position + (Local_Z * Aim);
 
                 Camera.Recompile(10, 10, -Range, Range);
+
+                ortho = true;
+            }
+            public void BuildOrthographic(Vector3 f, Vector3 u, Vector3 r, Vector2 scal)
+            {
+                Local_X = r;
+                Local_Z = f;
+                Local_Y = u;
+
+                WindowScale = scal;
+
+                Flatten = Vector3.One - f;
+
+                Camera.TargetUp = Local_Y;
+                Camera.TargetAngle = Local_Z;
+                Camera.Position = Position + (Local_Z * Aim);
+
+                Camera.Recompile(scal.X, scal.Y, -Range, Range);
 
                 ortho = true;
             }
@@ -1766,7 +1782,7 @@ namespace core.src
                 if (ortho)
                 {
                     Camera.Position = Position + (Local_Z * Aim);
-                    Camera.Recompile(10, 10, -Range, Range);
+                    Camera.Recompile(WindowScale.X, WindowScale.Y, -Range, Range);
                 }
             }
 
@@ -1793,6 +1809,8 @@ namespace core.src
             _parent = parent;
             _graphics = parent._game.GraphicsDevice;
             _sprites = _parent._game._spriteBatch;
+
+            Attention_Level = ATTENTION_UNFOCUSED;
 
             _targetID = -1;
 
@@ -1823,28 +1841,34 @@ namespace core.src
         }
         public void prepoll()
         {
-            for (int i = 0; i < 4; i++)
+            if (Attention_Level == ATTENTION_UNFOCUSED)
             {
-                windows[i].Poll();
-                if (windows[i].Focuser.ButtonDown)
+                for (int i = 0; i < 4; i++)
                 {
-                    _targetID = i;
+                    windows[i].Poll();
+                    if (windows[i].Focuser.ButtonDown)
+                    {
+                        _targetID = i;
+                    }
                 }
             }
 
             Poll();
 
-            if (windows[PERSPECTIVE_ID].Focuser.ButtonDown)
-                DefaultProcess(windows[PERSPECTIVE_ID]);
+            if (Attention_Level == ATTENTION_UNFOCUSED)
+            {
+                if (windows[PERSPECTIVE_ID].Focuser.ButtonDown)
+                    DefaultProcess(windows[PERSPECTIVE_ID]);
 
-            if (windows[BIRDSEYE_ID].Focuser.ButtonDown)
-                OrthoProcess(windows[BIRDSEYE_ID], WindowContext.Birdseye);
+                if (windows[BIRDSEYE_ID].Focuser.ButtonDown)
+                    OrthoProcess(windows[BIRDSEYE_ID], WindowContext.Birdseye);
 
-            if (windows[FORWARD_ID].Focuser.ButtonDown)
-                OrthoProcess(windows[FORWARD_ID], WindowContext.Forward);
+                if (windows[FORWARD_ID].Focuser.ButtonDown)
+                    OrthoProcess(windows[FORWARD_ID], WindowContext.Forward);
 
-            if (windows[SIDE_ID].Focuser.ButtonDown)
-                OrthoProcess(windows[SIDE_ID], WindowContext.Side);
+                if (windows[SIDE_ID].Focuser.ButtonDown)
+                    OrthoProcess(windows[SIDE_ID], WindowContext.Side);
+            }
         }
         public virtual void Poll() { }
         public void prerender()
@@ -1890,7 +1914,7 @@ namespace core.src
         public virtual void OrthoProcess(PerspectiveViewerWindow window, WindowContext context) 
         {
             Vector3 Y = Input.KeyDelta(Keys.W, Keys.S) * window.Local_Y;
-            Vector3 X = Input.KeyDelta(Keys.A, Keys.D) * window.Local_X;
+            Vector3 X = Input.KeyDelta(Keys.D, Keys.A) * window.Local_X;
 
             Y *= (float)(Program.Game.FrameTime * 5);
             X *= (float)(Program.Game.FrameTime * 5);
@@ -1905,6 +1929,17 @@ namespace core.src
 
             window.Range += (float)(rangeDelta / Program.Game.FrameRate);
             if (window.Range < 0) window.Range = 0;
+
+            float winScalDelta = (float)(Input.KeyDelta(Keys.V, Keys.F) / Program.Game.FrameRate) * 10;
+
+            float scal = window.WindowScale.X + winScalDelta;
+            window.WindowScale.X = scal;
+            window.WindowScale.Y = scal;
+
+            if (winScalDelta != 0)
+            {
+                window.Camera.Recompile(scal, scal, -window.Range, window.Range);
+            }
         }
         public virtual void OrthoRender(PerspectiveViewerWindow window, WindowContext context) 
         {
@@ -1962,14 +1997,17 @@ namespace core.src
         public BrushLibrary library;
 
         protected ListViewer<VertexPositionColorTexture> polyList;
-        protected ListViewer<VertexModel.TexturedPolygon> brushContentsList;
+        protected ListViewer<VertexModelAdvanced.Polygon> brushContentsList;
         protected PropertyViewer vertexPropertyViewer;
 
         protected PropertyViewer brushPropertyViewer;
 
         protected PropertyViewer brushPolygonPropertyViewer;
 
-        protected VertexModel[] xyzPlanes;
+        protected PropertyViewer libraryNewDialog;
+        protected PropertyViewer polygonNewDialog;
+
+        protected VertexModelAdvanced[] xyzPlanes;
         protected Texture2D circleTex;
         protected Vector2 circleOffset;
         private bool renderPlanes;
@@ -1981,7 +2019,7 @@ namespace core.src
             //The size of a single "small" scroller
             Vector2 s = new Vector2((Program.InternalScreen.X - Program.InternalScreen.Y) / 3f, Program.InternalScreen.Y / 3f);
             
-            brushContentsList = new ListViewer<VertexModel.TexturedPolygon>(new List<VertexModel.TexturedPolygon>(), 10, p, s, Program.Game.Content);
+            brushContentsList = new ListViewer<VertexModelAdvanced.Polygon>(new List<VertexModelAdvanced.Polygon>(), 17, p, s, Program.Game.Content);
 
             p.Y += Program.InternalScreen.Y / 3f;
             s.Y /= 2;
@@ -2009,34 +2047,41 @@ namespace core.src
 
             SetupBrushProperty();
 
+            p = Program.InternalScreen / 4;
+            s = Program.InternalScreen / 2;
+
+            libraryNewDialog = new PropertyViewer(_graphics, p, s, 0);
+            polygonNewDialog = new PropertyViewer(_graphics, p, s, 0);
+
+            SetupDialogBoxes();
 
             CurrentBrush = null;
 
             windows[PERSPECTIVE_ID].Camera.TargetAngle = new Vector3(-1, -1, -1);
             windows[PERSPECTIVE_ID].Camera.Position = windows[PERSPECTIVE_ID].Camera.TargetAngle * -d_Distance;
 
-            xyzPlanes = new VertexModel[4];
+            xyzPlanes = new VertexModelAdvanced[4];
 
             int opac = 64;
             
             //X facing (SIDE)
-            xyzPlanes[SIDE_ID] = new VertexModel(_graphics, 1);
-            xyzPlanes[SIDE_ID].polygons[0] = new VertexModel.TexturedPolygon(_graphics, 4, 2, PrimitiveType.TriangleStrip);
-            xyzPlanes[SIDE_ID].polygons[0].verticies = VertexModel.Generate4Point(Vector3.Zero, Vector3.UnitY * 5, Vector3.UnitZ * 5, new Color(colors[SIDE_ID], opac));
+            xyzPlanes[SIDE_ID] = new VertexModelAdvanced(_graphics);
+            xyzPlanes[SIDE_ID].AddBasicPoly(new VertexModelAdvanced.Polygon(_graphics, 4, 2, PrimitiveType.TriangleStrip, 
+                VertexModelAdvanced.Generate4Point(Vector3.Zero, Vector3.UnitY * 5, Vector3.UnitZ * 5, new Color(colors[SIDE_ID], opac))));
 
             //Z facing (FORWARD)
-            xyzPlanes[FORWARD_ID] = new VertexModel(_graphics, 1);
-            xyzPlanes[FORWARD_ID].polygons[0] = new VertexModel.TexturedPolygon(_graphics, 4, 2, PrimitiveType.TriangleStrip);
-            xyzPlanes[FORWARD_ID].polygons[0].verticies = VertexModel.Generate4Point(Vector3.Zero, Vector3.UnitY * 5, Vector3.UnitX * 5, new Color(colors[FORWARD_ID], opac));
+            xyzPlanes[FORWARD_ID] = new VertexModelAdvanced(_graphics);
+            xyzPlanes[FORWARD_ID].AddBasicPoly(new VertexModelAdvanced.Polygon(_graphics, 4, 2, PrimitiveType.TriangleStrip,
+                VertexModelAdvanced.Generate4Point(Vector3.Zero, Vector3.UnitY * 5, Vector3.UnitX * 5, new Color(colors[FORWARD_ID], opac))));
 
             //Y facing (TOP)
-            xyzPlanes[BIRDSEYE_ID] = new VertexModel(_graphics, 1);
-            xyzPlanes[BIRDSEYE_ID].polygons[0] = new VertexModel.TexturedPolygon(_graphics, 4, 2, PrimitiveType.TriangleStrip);
-            xyzPlanes[BIRDSEYE_ID].polygons[0].verticies = VertexModel.Generate4Point(Vector3.Zero, Vector3.UnitZ * 5, Vector3.UnitX * 5, new Color(colors[BIRDSEYE_ID], opac));
+            xyzPlanes[BIRDSEYE_ID] = new VertexModelAdvanced(_graphics);
+            xyzPlanes[BIRDSEYE_ID].AddBasicPoly(new VertexModelAdvanced.Polygon(_graphics, 4, 2, PrimitiveType.TriangleStrip,
+                VertexModelAdvanced.Generate4Point(Vector3.Zero, Vector3.UnitZ * 5, Vector3.UnitX * 5, new Color(colors[BIRDSEYE_ID], opac))));
 
             for (int i = 1; i < 4; i++)
             {
-                xyzPlanes[i].Recompile(VertexModel.COMPILE_POLYGONS);
+                xyzPlanes[i].Recompile(VertexModelAdvanced.COMPILE_POLYGONS);
                 xyzPlanes[i].position = windows[i].Camera.Position;
             }
 
@@ -2076,7 +2121,7 @@ namespace core.src
                     parent.DisplayedText = "UNDF";
                     return 0;
                 }
-                parent.DisplayedText = String.Format("{0:0.00}", CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies[selVert].Position.X);
+                parent.DisplayedText = String.Format("{0:0.00}", CurrentBrush.physical.GetPoly(brushContentsList.curIndex).verticies[selVert].Position.X);
                 return 0;
             }, (PropertyViewer.PropertyWidget parent) => //Set
             {
@@ -2084,9 +2129,13 @@ namespace core.src
                 float temp = 0;
                 if (float.TryParse(parent.TempText, out temp))
                 {
-                    CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies[selVert].Position.X = temp;
-                    CurrentBrush.physical.polygons[brushContentsList.curIndex].Recompile();
-                    polyList.SetData(CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies);
+                    Vector3 tmp = CurrentBrush.physical.GetPoly(brushContentsList.curIndex).GetVertexPoint(selVert);
+
+                    tmp.X = temp;
+
+                    CurrentBrush.physical.GetPoly(brushContentsList.curIndex).SetVertexPoint(selVert, tmp);
+                    CurrentBrush.physical.Recompile(VertexModelAdvanced.COMPILE_POLYGONS);
+                    polyList.SetData(CurrentBrush.physical.GetPoly(brushContentsList.curIndex).verticies);
                 }
                 return 0;
             });
@@ -2101,7 +2150,7 @@ namespace core.src
                     parent.DisplayedText = "UNDF";
                     return 0;
                 }
-                parent.DisplayedText = String.Format("{0:0.00}", CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies[selVert].Position.Y);
+                parent.DisplayedText = String.Format("{0:0.00}", CurrentBrush.physical.GetPoly(brushContentsList.curIndex).verticies[selVert].Position.Y);
                 return 0;
             }, (PropertyViewer.PropertyWidget parent) => //Set
             {
@@ -2109,9 +2158,13 @@ namespace core.src
                 float temp = 0;
                 if (float.TryParse(parent.TempText, out temp))
                 {
-                    CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies[selVert].Position.Y = temp;
-                    CurrentBrush.physical.polygons[brushContentsList.curIndex].Recompile();
-                    polyList.SetData(CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies);
+                    Vector3 tmp = CurrentBrush.physical.GetPoly(brushContentsList.curIndex).GetVertexPoint(selVert);
+
+                    tmp.Y = temp;
+
+                    CurrentBrush.physical.GetPoly(brushContentsList.curIndex).SetVertexPoint(selVert, tmp);
+                    CurrentBrush.physical.Recompile(VertexModelAdvanced.COMPILE_POLYGONS);
+                    polyList.SetData(CurrentBrush.physical.GetPoly(brushContentsList.curIndex).verticies);
                 }
                 return 0;
             });
@@ -2126,7 +2179,7 @@ namespace core.src
                     parent.DisplayedText = "UNDF";
                     return 0;
                 }
-                parent.DisplayedText = String.Format("{0:0.00}", CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies[selVert].Position.Z);
+                parent.DisplayedText = String.Format("{0:0.00}", CurrentBrush.physical.GetPoly(brushContentsList.curIndex).verticies[selVert].Position.Z);
                 return 0;
             }, (PropertyViewer.PropertyWidget parent) => //Set
             {
@@ -2134,9 +2187,13 @@ namespace core.src
                 float temp = 0;
                 if (float.TryParse(parent.TempText, out temp))
                 {
-                    CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies[selVert].Position.Z = temp;
-                    CurrentBrush.physical.polygons[brushContentsList.curIndex].Recompile();
-                    polyList.SetData(CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies);
+                    Vector3 tmp = CurrentBrush.physical.GetPoly(brushContentsList.curIndex).GetVertexPoint(selVert);
+
+                    tmp.Z = temp;
+
+                    CurrentBrush.physical.GetPoly(brushContentsList.curIndex).SetVertexPoint(selVert, tmp);
+                    CurrentBrush.physical.Recompile(VertexModelAdvanced.COMPILE_POLYGONS);
+                    polyList.SetData(CurrentBrush.physical.GetPoly(brushContentsList.curIndex).verticies);
                 }
                 return 0;
             });
@@ -2155,7 +2212,7 @@ namespace core.src
                     parent.DisplayedText = "UNDF";
                     return 0;
                 }
-                parent.DisplayedText = $"{CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies[selVert].Color.R}";
+                parent.DisplayedText = $"{CurrentBrush.physical.GetPoly(brushContentsList.curIndex).verticies[selVert].Color.R}";
                 return 0;
             }, (PropertyViewer.PropertyWidget parent) => //Set
             {
@@ -2163,9 +2220,9 @@ namespace core.src
                 byte temp = 0;
                 if (byte.TryParse(parent.TempText, out temp))
                 {
-                    CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies[selVert].Color.R = temp;
-                    CurrentBrush.physical.polygons[brushContentsList.curIndex].Recompile();
-                    polyList.SetData(CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies);
+                    CurrentBrush.physical.GetPoly(brushContentsList.curIndex).verticies[selVert].Color.R = temp;
+                    CurrentBrush.physical.GetPoly(brushContentsList.curIndex).Compile();
+                    polyList.SetData(CurrentBrush.physical.GetPoly(brushContentsList.curIndex).verticies);
                 }
                 return 0;
             }));
@@ -2179,7 +2236,7 @@ namespace core.src
                     parent.DisplayedText = "UNDF";
                     return 0;
                 }
-                parent.DisplayedText = $"{CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies[selVert].Color.G}";
+                parent.DisplayedText = $"{CurrentBrush.physical.GetPoly(brushContentsList.curIndex).verticies[selVert].Color.G}";
                 return 0;
             }, (PropertyViewer.PropertyWidget parent) => //Set
             {
@@ -2187,9 +2244,9 @@ namespace core.src
                 byte temp = 0;
                 if (byte.TryParse(parent.TempText, out temp))
                 {
-                    CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies[selVert].Color.G = temp;
-                    CurrentBrush.physical.polygons[brushContentsList.curIndex].Recompile();
-                    polyList.SetData(CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies);
+                    CurrentBrush.physical.GetPoly(brushContentsList.curIndex).verticies[selVert].Color.G = temp;
+                    CurrentBrush.physical.GetPoly(brushContentsList.curIndex).Compile();
+                    polyList.SetData(CurrentBrush.physical.GetPoly(brushContentsList.curIndex).verticies);
                 }
                 return 0;
             }));
@@ -2203,7 +2260,7 @@ namespace core.src
                     parent.DisplayedText = "UNDF";
                     return 0;
                 }
-                parent.DisplayedText = $"{CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies[selVert].Color.B}";
+                parent.DisplayedText = $"{CurrentBrush.physical.GetPoly(brushContentsList.curIndex).verticies[selVert].Color.B}";
                 return 0;
             }, (PropertyViewer.PropertyWidget parent) => //Set
             {
@@ -2211,9 +2268,9 @@ namespace core.src
                 byte temp = 0;
                 if (byte.TryParse(parent.TempText, out temp))
                 {
-                    CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies[selVert].Color.B = temp;
-                    CurrentBrush.physical.polygons[brushContentsList.curIndex].Recompile();
-                    polyList.SetData(CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies);
+                    CurrentBrush.physical.GetPoly(brushContentsList.curIndex).verticies[selVert].Color.B = temp;
+                    CurrentBrush.physical.GetPoly(brushContentsList.curIndex).Compile();
+                    polyList.SetData(CurrentBrush.physical.GetPoly(brushContentsList.curIndex).verticies);
                 }
                 return 0;
             }));
@@ -2229,7 +2286,7 @@ namespace core.src
                     parent.DisplayedText = "UNDF";
                     return 0;
                 }
-                parent.DisplayedText = $"{CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies[selVert].Color.A}";
+                parent.DisplayedText = $"{CurrentBrush.physical.GetPoly(brushContentsList.curIndex).verticies[selVert].Color.A}";
                 return 0;
             }, (PropertyViewer.PropertyWidget parent) => //Set
             {
@@ -2237,9 +2294,9 @@ namespace core.src
                 byte temp = 0;
                 if (byte.TryParse(parent.TempText, out temp))
                 {
-                    CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies[selVert].Color.A = temp;
-                    CurrentBrush.physical.polygons[brushContentsList.curIndex].Recompile();
-                    polyList.SetData(CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies);
+                    CurrentBrush.physical.GetPoly(brushContentsList.curIndex).verticies[selVert].Color.A = temp;
+                    CurrentBrush.physical.GetPoly(brushContentsList.curIndex).Compile();
+                    polyList.SetData(CurrentBrush.physical.GetPoly(brushContentsList.curIndex).verticies);
                 }
                 return 0;
             }));
@@ -2255,7 +2312,7 @@ namespace core.src
                     parent.DisplayedText = "UNDF";
                     return 0;
                 }
-                parent.DisplayedText = $"{CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies[selVert].TextureCoordinate.X}";
+                parent.DisplayedText = $"{CurrentBrush.physical.GetPoly(brushContentsList.curIndex).verticies[selVert].TextureCoordinate.X}";
                 return 0;
             }, (PropertyViewer.PropertyWidget parent) => //Set
             {
@@ -2263,9 +2320,9 @@ namespace core.src
                 float temp = 0;
                 if (float.TryParse(parent.TempText, out temp))
                 {
-                    CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies[selVert].TextureCoordinate.X = temp;
-                    CurrentBrush.physical.polygons[brushContentsList.curIndex].Recompile();
-                    polyList.SetData(CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies);
+                    CurrentBrush.physical.GetPoly(brushContentsList.curIndex).verticies[selVert].TextureCoordinate.X = temp;
+                    CurrentBrush.physical.GetPoly(brushContentsList.curIndex).Compile();
+                    polyList.SetData(CurrentBrush.physical.GetPoly(brushContentsList.curIndex).verticies);
                 }
                 return 0;
             }));
@@ -2280,7 +2337,7 @@ namespace core.src
                     parent.DisplayedText = "UNDF";
                     return 0;
                 }
-                parent.DisplayedText = $"{CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies[selVert].TextureCoordinate.Y}";
+                parent.DisplayedText = $"{CurrentBrush.physical.GetPoly(brushContentsList.curIndex).verticies[selVert].TextureCoordinate.Y}";
                 return 0;
             }, (PropertyViewer.PropertyWidget parent) => //Set
             {
@@ -2288,9 +2345,9 @@ namespace core.src
                 float temp = 0;
                 if (float.TryParse(parent.TempText, out temp))
                 {
-                    CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies[selVert].TextureCoordinate.Y = temp;
-                    CurrentBrush.physical.polygons[brushContentsList.curIndex].Recompile();
-                    polyList.SetData(CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies);
+                    CurrentBrush.physical.GetPoly(brushContentsList.curIndex).verticies[selVert].TextureCoordinate.Y = temp;
+                    CurrentBrush.physical.GetPoly(brushContentsList.curIndex).Compile();
+                    polyList.SetData(CurrentBrush.physical.GetPoly(brushContentsList.curIndex).verticies);
                 }
                 return 0;
             }));
@@ -2308,13 +2365,13 @@ namespace core.src
                     parent.DisplayedText = "UNDF";
                     return -1;
                 }
-                if (!CurrentBrush.modelPolys[brushContentsList.curIndex].textureBuilt)
+                if (!CurrentBrush.physical.GetPoly(brushContentsList.curIndex).textureBuilt)
                 {
                     parent.DisplayedText = "Default";
                 }
                 else
                 {
-                    parent.DisplayedText = CurrentBrush.modelPolys[brushContentsList.curIndex].texture.Name;
+                    parent.DisplayedText = CurrentBrush.physical.GetPoly(brushContentsList.curIndex).texture.Name;
                 }
                 return 0;
             }, (PropertyViewer.PropertyWidget parent) => //set
@@ -2322,19 +2379,163 @@ namespace core.src
                 if (brushContentsList.curIndex == -1 || library.brushViewer.curIndex == -1) return -1;
                 if (parent.TempText.ToLower() == "default")
                 {
-                    CurrentBrush.modelPolys[brushContentsList.curIndex].textureBuilt = false;
+                    CurrentBrush.physical.GetPoly(brushContentsList.curIndex).textureBuilt = false;
                     return 0;
                 }
                 try
                 {
-                    CurrentBrush.modelPolys[brushContentsList.curIndex].texture = Program.Game.Content.Load<Texture2D>(parent.TempText);
-                    CurrentBrush.modelPolys[brushContentsList.curIndex].textureBuilt = true;
+                    CurrentBrush.physical.GetPoly(brushContentsList.curIndex).texture = Program.Game.Content.Load<Texture2D>(parent.TempText);
+                    CurrentBrush.physical.GetPoly(brushContentsList.curIndex).textureBuilt = true;
                     parent.TempText = "";
                 }
                 catch (Exception e) { }
                 return 0;
             }));
+        }
 
+        protected bool lib_isMesh, lib_isComplx;
+        protected float lib_x, lib_y, lib_z;
+        public void SetupDialogBoxes()
+        {
+            //library new dialog : libraryNewDialog
+
+            Vector2 pos = new Vector2(15, 30);
+            Vector2 siz = new Vector2(60, 30);
+
+            //lib_isMesh
+            lib_isMesh = false; //if true, mesh: if false, cube
+            libraryNewDialog.AddPropertyWidget(new PropertyViewer.PropertyWidget.ButtonWidget(_graphics, pos, siz, "GenMesh?", (PropertyViewer.PropertyWidget widg) => //GET
+            {
+                (widg as PropertyViewer.PropertyWidget.ButtonWidget).State = lib_isMesh;
+                return 0;
+            }, (PropertyViewer.PropertyWidget widg) => //SET
+            {
+                lib_isMesh = !lib_isMesh;
+                return 0;
+            })
+            {
+                HighText = "Mesh", //display for high
+                LowText = "Cube", //temp for low
+                DoText = true
+            });
+
+            //lib_isComplx
+            pos.X += 175;
+            lib_isComplx = false; //if true, complex: if false, simple
+            libraryNewDialog.AddPropertyWidget(new PropertyViewer.PropertyWidget.ButtonWidget(_graphics, pos, siz, "Complex?", (PropertyViewer.PropertyWidget widg) => //GET
+            {
+                (widg as PropertyViewer.PropertyWidget.ButtonWidget).State = lib_isComplx;
+                return 0;
+            }, (PropertyViewer.PropertyWidget widg) => //SET
+            {
+                lib_isComplx = !lib_isComplx;
+                return 0;
+            })
+            {
+                HighText = "C", //display for high
+                LowText = "S", //temp for low
+                DoText = true
+            });
+
+            //generate
+            pos.X += 175;
+            libraryNewDialog.AddPropertyWidget(new PropertyViewer.PropertyWidget.ButtonWidget(_graphics, pos, siz, "Generate", (PropertyViewer.PropertyWidget widg) => //GET
+            {
+                return 0;
+            }, (PropertyViewer.PropertyWidget widg) => //SET
+            {
+                //GENERATE
+
+                Brush newBrush = new Brush();
+                if (!lib_isMesh)
+                {
+                    newBrush.physical = VertexModelAdvanced.CreateGenericCuboid(_graphics, lib_isComplx, new Vector3(lib_x, lib_y, lib_z));
+                    if (lib_isComplx)
+                        newBrush.name = "ComplexCuboid";
+                    else
+                        newBrush.name = "SimpleCuboid";
+                }
+                else
+                {
+                    newBrush.physical = VertexModelAdvanced.CreateGenericMesh(_graphics, lib_isComplx, lib_x, lib_y, lib_z);
+                    if (lib_isComplx)
+                        newBrush.name = "ComplexMesh";
+                    else
+                        newBrush.name = "SimpleMesh";
+                }
+
+                library.brushes.Add(newBrush);
+
+                //RESET VALS
+                ResetDialogBoxes();
+                Attention_Level = 0;
+                return 0;
+            }));
+
+            siz.X = 200;
+            pos.X = 15;
+            pos.Y = 100;
+
+            //positions X
+            lib_x = 1;
+            libraryNewDialog.AddPropertyWidget(new PropertyWidget(_graphics, pos, siz, "Dimensions (XYZ)", (PropertyWidget widg) =>
+            {
+                widg.DisplayedText = String.Format("{0:0.00}", lib_x);
+                return 0;
+            }, (PropertyWidget widg) =>
+            {
+                float tmp = 0;
+                if (float.TryParse(widg.TempText, out tmp))
+                {
+                    lib_x = tmp;
+                }
+                widg.TempText = "";
+                return 0;
+            }));
+
+            pos.X += 220;
+            //positions Y
+            lib_y = 1;
+            libraryNewDialog.AddPropertyWidget(new PropertyWidget(_graphics, pos, siz, (PropertyWidget widg) =>
+            {
+                widg.DisplayedText = String.Format("{0:0.00}", lib_y);
+                return 0;
+            }, (PropertyWidget widg) =>
+            {
+                float tmp = 0;
+                if (float.TryParse(widg.TempText, out tmp))
+                {
+                    lib_y = tmp;
+                }
+                widg.TempText = "";
+                return 0;
+            }));
+
+            pos.X += 220;
+            //positions Z
+            lib_z = 1;
+            libraryNewDialog.AddPropertyWidget(new PropertyWidget(_graphics, pos, siz, (PropertyWidget widg) =>
+            {
+                widg.DisplayedText = String.Format("{0:0.00}", lib_z);
+                return 0;
+            }, (PropertyWidget widg) =>
+            {
+                float tmp = 0;
+                if (float.TryParse(widg.TempText, out tmp))
+                {
+                    lib_z = tmp;
+                }
+                widg.TempText = "";
+                return 0;
+            }));
+        }
+        private void ResetDialogBoxes()
+        {
+            lib_isMesh = false;
+            lib_isComplx = false;
+            lib_x = 1;
+            lib_y = 1;
+            lib_z = 1;
         }
 
         public override void Destroy()
@@ -2344,131 +2545,130 @@ namespace core.src
             brushContentsList.Destroy();
             vertexPropertyViewer.Destroy();
             brushPropertyViewer.Destroy();
+            brushPolygonPropertyViewer.Destroy();
+            polyList.Destroy();
+            libraryNewDialog.Destroy();
+            polygonNewDialog.Destroy();
+            circleTex.Dispose();
+            for (int i = 0; i < xyzPlanes.Length; i++)
+            {
+                xyzPlanes[i].Destroy();
+            }
         }
 
         int lastIndexLib = -1;
         int lastIndexBrush = -1;
+        public void BindBrush(Brush brush)
+        {
+            CurrentBrush = brush;
+            brushContentsList.viewedList = CurrentBrush.physical.Polygons;
+            rendersides = true;
+            brushContentsList.curIndex = -1;
+        }
         public override void Poll()
         {
-            brushContentsList.Poll();
-            brushPropertyViewer.Poll();
-            library.Poll();
-            polyList.Poll();
+            if (Attention_Level == 0)
+            {
+                brushContentsList.Poll();
+                brushPropertyViewer.Poll();
+                library.Poll();
+                polyList.Poll();
 
-            //Select brush from the library
-            if (lastIndexLib != library.brushViewer.curIndex)
-            {
-                lastIndexLib = library.brushViewer.curIndex;
-                selVert = -1;
-                polyList.curIndex = -1;
-                mouseState = 0;
-                if (lastIndexLib != -1)
+                //Select brush from the library
+                if (lastIndexLib != library.brushViewer.curIndex)
                 {
-                    CurrentBrush = library.brushViewer.viewedList[lastIndexLib]; 
-                    brushContentsList.viewedList = CurrentBrush.modelPolys;
-                    rendersides = true;
-                    brushContentsList.curIndex = -1;
+                    lastIndexLib = library.brushViewer.curIndex;
+                    selVert = -1;
+                    polyList.curIndex = -1;
+                    mouseState = 0;
+                    if (lastIndexLib != -1)
+                    {
+                        BindBrush(library.brushViewer.viewedList[lastIndexLib]);
+                    }
+                    else
+                    {
+                        CurrentBrush = null;
+                        brushContentsList.viewedList = new List<VertexModelAdvanced.Polygon>();
+                        rendersides = true;
+                        brushContentsList.curIndex = -1;
+                    }
                 }
-                else
-                {
-                    CurrentBrush = null;
-                    brushContentsList.viewedList = new List<VertexModel.TexturedPolygon>();
-                    rendersides = true;
-                    brushContentsList.curIndex = -1;
-                }
-            }
 
-            //Select polygon in the brush
-            if (lastIndexBrush != brushContentsList.curIndex)
-            {
-                lastIndexBrush = brushContentsList.curIndex;
-                selVert = -1;
-                polyList.curIndex = -1;
-                mouseState = 0;
-                if (lastIndexBrush != -1)
+                //Select polygon in the brush
+                if (lastIndexBrush != brushContentsList.curIndex)
                 {
-                    polyList.SetData(CurrentBrush.physical.polygons[lastIndexBrush].verticies);
+                    lastIndexBrush = brushContentsList.curIndex;
+                    selVert = -1;
+                    polyList.curIndex = -1;
+                    mouseState = 0;
+                    if (lastIndexBrush != -1)
+                    {
+                        polyList.SetData(CurrentBrush.physical.GetPoly(lastIndexBrush).verticies);
+                    }
+                    else
+                    {
+                        polyList.viewedList = new List<VertexPositionColorTexture>();
+                    }
                 }
-                else
+
+                //Select vertice from the current polygon
+                if (selVert != polyList.curIndex)
                 {
-                    polyList.viewedList = new List<VertexPositionColorTexture>();
+                    selVert = polyList.curIndex;
+                    if (selVert != -1)
+                    {
+                        mouseState = 1;
+                    }
+                    else
+                    {
+                        mouseState = 0;
+                    }
                 }
-            }
-            
-            //Select vertice from the current polygon
-            if (selVert != polyList.curIndex)
-            {
-                selVert = polyList.curIndex;
+
+                //Poll if only active
                 if (selVert != -1)
                 {
-                    mouseState = 1;
+                    vertexPropertyViewer.Poll();
                 }
-                else
+                if (brushContentsList.curIndex != -1)
                 {
-                    mouseState = 0;
-                }
-            }
-
-            //Poll if only active
-            if (selVert != -1)
-            {
-                vertexPropertyViewer.Poll();
-            }
-            if (brushContentsList.curIndex != -1)
-            {
-                brushPolygonPropertyViewer.Poll();
-            }
-
-            //brush contents delete/create polys
-            if (brushContentsList.ButtonActive)
-            {
-                if (brushContentsList.curIndex != -1 && (Input.IsKeyDown(Keys.LeftControl) || Input.IsKeyDown(Keys.RightControl)) && Input.IsKeyPressed(Keys.Delete)) //deletes
-                {
-                    VertexModel temp = CurrentBrush.physical;
-                    VertexModel.TexturedPolygon[] polyNew = new VertexModel.TexturedPolygon[temp.polygons.Length - 1];
-                    for (int i = 0, ext = 0; i < polyNew.Length; i++, ext++)
-                    {
-                        if (ext == brushContentsList.curIndex) ext++;
-                        polyNew[i] = temp.polygons[ext];
-                    }
-                    temp.polygons = polyNew;
-
-                    CurrentBrush.Bind(temp);
-                    CurrentBrush.physical.Recompile(VertexModel.COMPILE_POLYGONS);
-                    brushContentsList.curIndex = -1;
-                    selVert = -1;
+                    brushPolygonPropertyViewer.Poll();
                 }
 
-                if (Input.IsKeyDown(Keys.LeftControl) || Input.IsKeyDown(Keys.RightControl)) //creates
+                //brushlibrary create new 
+                if (library.button.ButtonDown)
                 {
-                    VertexModel.TexturedPolygon insert = null;
-                    bool y = false;
-                    if (Input.IsKeyPressed(Keys.D3))
+                    if (Input.IsKeyPressed(Keys.N))
+                        Attention_Level = 1;
+                }
+
+                //brush contents delete/create polys
+                if (brushContentsList.ButtonActive)
+                {
+                    if (brushContentsList.curIndex != -1 && (Input.IsKeyDown(Keys.LeftControl) || Input.IsKeyDown(Keys.RightControl)) && Input.IsKeyPressed(Keys.Delete)) //deletes
                     {
-                        y = true;
-                        insert = new VertexModel.TexturedPolygon(_graphics, 3, 1, PrimitiveType.TriangleList);
-                        insert.verticies = VertexModel.Generate3Point(Vector3.UnitZ, Vector3.UnitX, Vector3.UnitY);
-                    }
-                    else if (Input.IsKeyPressed(Keys.D4))
-                    {
-                        y = true;
-                        insert = new VertexModel.TexturedPolygon(_graphics, 4, 2, PrimitiveType.TriangleStrip);
-                        insert.verticies = VertexModel.Generate4Point(Vector3.UnitZ, Vector3.UnitX, Vector3.UnitY);
+                        CurrentBrush.physical.RemovePoly(brushContentsList.curIndex);
+                        CurrentBrush.physical.Recompile(VertexModelAdvanced.COMPILE_POLYGONS);
+                        brushContentsList.curIndex = -1;
+                        selVert = -1;
                     }
 
-                    if (y)
-                    {
-                        VertexModel temp = CurrentBrush.physical;
-                        VertexModel.TexturedPolygon[] polyNew = new VertexModel.TexturedPolygon[temp.polygons.Length + 1];
-                        for (int i = 0; i < temp.polygons.Length; i++)
-                        {
-                            polyNew[i] = temp.polygons[i];
-                        }
-                        polyNew[temp.polygons.Length] = insert;
-                        temp.polygons = polyNew;
-                        CurrentBrush.Bind(temp);
-                        CurrentBrush.physical.Recompile(VertexModel.COMPILE_POLYGONS);
-                    }
+                    //change this code to change the attention level to a higher value, open dialog to generate a poly
+                    if (Input.IsKeyPressed(Keys.N))
+                        Attention_Level = 2;
+                }
+            }
+            else
+            {
+                if (Input.IsKeyPressed(Keys.Escape))
+                {
+                    ResetDialogBoxes();
+                    Attention_Level = 0;
+                }
+
+                if (Attention_Level == 1) //libraryNewDialog
+                {
+                    libraryNewDialog.Poll();
                 }
             }
         }
@@ -2491,6 +2691,12 @@ namespace core.src
                 polyList.Render(false);
 
             library.Render(false);
+
+            //Render special dialog boxes
+            if (Attention_Level == 1)
+            {
+                libraryNewDialog.Render(false);
+            }
 
             _sprites.End();
         }
@@ -2566,7 +2772,7 @@ namespace core.src
                 Vector2 mp = Input.GetMousePosition() - window.TargetOrigin;
                 Vector2 pos;
 
-                VertexModel.TexturedPolygon poly = CurrentBrush.physical.polygons[brushContentsList.curIndex];
+                VertexModelAdvanced.Polygon poly = CurrentBrush.physical.GetPoly(brushContentsList.curIndex);
                 switch (mouseState)
                 {
                     case 0:
@@ -2579,10 +2785,10 @@ namespace core.src
                             {
                                 VertexPositionColorTexture det = poly.verticies[i];
 
-                                pos = window.GetVector2(det.Position);
+                                pos = window.GetVector2(poly.GetVertexPoint(i)) - window.GetVector2(window.Position);
 
-                                pos.X *= (window.Target.Width / 10);
-                                pos.Y *= (window.Target.Height / 10);
+                                pos.X *= (window.Target.Width / window.WindowScale.X);
+                                pos.Y *= (window.Target.Height / window.WindowScale.Y);
 
                                 pos += new Vector2(window.Target.Width, window.Target.Height) / 2;
 
@@ -2609,10 +2815,10 @@ namespace core.src
                     case 1:
                         //Allow for freemove: if click outside, go to 0
 
-                        pos = window.GetVector2(poly.verticies[selVert].Position);
+                        pos = window.GetVector2(poly.GetVertexPoint(selVert)) - window.GetVector2(window.Position);
 
-                        pos.X *= (window.Target.Width / 10);
-                        pos.Y *= (window.Target.Height / 10);
+                        pos.X *= (window.Target.Width / window.WindowScale.X);
+                        pos.Y *= (window.Target.Height / window.WindowScale.Y);
 
                         pos += new Vector2(window.Target.Width, window.Target.Height) / 2;
 
@@ -2643,14 +2849,14 @@ namespace core.src
 
                         MouseOrigin -= new Vector2(window.Target.Width, window.Target.Height) / 2;
 
-                        MouseOrigin.Y /= (window.Target.Height / 10);
-                        MouseOrigin.X /= (window.Target.Width / 10);
+                        MouseOrigin.Y /= (window.Target.Height / window.WindowScale.X);
+                        MouseOrigin.X /= (window.Target.Width / window.WindowScale.Y);
 
-                        MouseProjection = window.GetVector3(MouseOrigin, poly.verticies[selVert].Position);
+                        MouseProjection = window.GetVector3(MouseOrigin + window.GetVector2(window.Position), poly.verticies[selVert].Position);
 
-                        poly.verticies[selVert].Position = MouseProjection;
-                        poly.Recompile();
-                        polyList.SetData(CurrentBrush.physical.polygons[brushContentsList.curIndex].verticies);
+                        poly.SetVertexPoint(selVert, MouseProjection);
+                        CurrentBrush.physical.Recompile(VertexModelAdvanced.COMPILE_POLYGONS);
+                        polyList.SetData(CurrentBrush.physical.GetPoly(brushContentsList.curIndex).verticies);
 
                         if (!Input.IsMouseDown(Input.MouseButton.LeftMouse))
                         {
@@ -2682,16 +2888,16 @@ namespace core.src
                 {
                     CurrentBrush.physical.Draw(window.Camera, brushContentsList.curIndex);
 
-                    VertexModel.TexturedPolygon poly = CurrentBrush.physical.polygons[brushContentsList.curIndex];
+                    VertexModelAdvanced.Polygon poly = CurrentBrush.physical.GetPoly(brushContentsList.curIndex);
                     Program.SpritesBeginDefault(_sprites);
                     for (int i = 0; i < poly.verticies.Length; i++)
                     {
                         VertexPositionColorTexture det = poly.verticies[i];
 
-                        Vector2 pos = window.GetVector2(det.Position);
+                        Vector2 pos = window.GetVector2(det.Position) - window.GetVector2(window.Position);
 
-                        pos.X *= (window.Target.Width / 10);
-                        pos.Y *= (window.Target.Height / 10);
+                        pos.X *= (window.Target.Width / window.WindowScale.X);
+                        pos.Y *= (window.Target.Height / window.WindowScale.Y);
 
                         pos += new Vector2(window.Target.Width, window.Target.Height) / 2;
 
