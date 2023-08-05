@@ -28,6 +28,7 @@ namespace prog
             ExternalScreen = new Vector2(1920, 1080) * 1.25f;
 
             Game = new martgame();
+            
             Game.Run();
         }
 
@@ -40,6 +41,45 @@ namespace prog
         public static string Vec3ToString(Vector3 v)
         {
             return $"{String.Format("{0:0.00}", v.X)}, {String.Format("{0:0.00}", v.Y)}, {String.Format("{0:0.00}", v.Z)}";
+        }
+
+        private static Texture2D lineTex;
+        private static bool lineTexBuilt = false;
+        public static void InitDrawLine(GraphicsDevice _graphics)
+        {
+            if (lineTexBuilt) return;
+            lineTexBuilt = true;
+            lineTex = new Texture2D(_graphics, 3, 3);
+            lineTex.SetData(new Color[]{
+                Color.White,
+                Color.White,
+                Color.White,
+                Color.White,
+                Color.Black,
+                Color.White,
+                Color.White,
+                Color.White,
+                Color.White
+            });
+        }
+        public static void DrawLine(GraphicsDevice _graphics, SpriteBatch _sprites, Vector2 a, Vector2 b, float thickness, bool startSprites = true)
+        {
+            if (startSprites)
+                SpritesBeginDefault(_sprites);
+
+            Vector2 siz = (b - a);
+
+            float length = siz.Length();
+            length = length / 3f;
+            thickness = thickness / 3f;
+            Vector2 scale = new Vector2(length, thickness);
+
+            double atan = Math.Atan2(siz.Y, siz.X);
+
+            _sprites.Draw(lineTex, a, null, Color.White, (float)atan, new Vector2(0, 1), scale, SpriteEffects.None, 0);
+
+            if (startSprites)
+                _sprites.End();
         }
     }
 

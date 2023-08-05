@@ -6,6 +6,7 @@ using prog;
 using System;
 using System.Collections.Generic;
 using static core.src.PropertyViewer;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace core.src
 {
@@ -125,16 +126,20 @@ namespace core.src
                 verticies = verts;
                 Compile();
             }
-            public virtual void SetVerts(Vector3[] vertPoints, bool autoColor)
+            public virtual void SetVerts(Vector3[] p, bool autoColor)
             {
-                if (vertPoints.Length != vertexCount) return;
+                if (p.Length != vertexCount) return;
 
                 for (int i = 0; i < vertexCount; i++)
                 {
-                    verticies[i].Position = vertPoints[i];
+                    verticies[i].Position = p[i];
                     if (autoColor)
                     {
-                        verticies[i].Color = new Color(vertPoints[i]);
+                        verticies[i].Color = new Color(p[i]);
+                    }
+                    else
+                    {
+                        verticies[i].Color = Color.GreenYellow;
                     }
                 }
 
@@ -688,7 +693,7 @@ namespace core.src
                         new Vector3(x+step, 0, z+step)
                     };
 
-                    Polygon tPoly = new Polygon(device, 4, 2, PrimitiveType.TriangleStrip, autoPoints, true);
+                    Polygon tPoly = new Polygon(device, 4, 2, PrimitiveType.TriangleStrip, autoPoints, false);
                     if (complex)
                         temp.AddComplexPoly(tPoly);
                     else
@@ -1694,7 +1699,7 @@ namespace core.src
                 WindowScale = Vector2.One * 10;
 
                 Aim = 0;
-                Range = 1;
+                Range = 10;
             }
 
             bool ortho = false;
@@ -1766,7 +1771,13 @@ namespace core.src
 
                 return new Vector2(x, y);
             }
-
+            public Vector2 MapToReal(Vector2 pos)
+            {
+                pos.X *= (Target.Width / WindowScale.X);
+                pos.Y *= (Target.Height / WindowScale.Y);
+                pos += new Vector2(Target.Width, Target.Height) / 2;
+                return pos;
+            }
             public Vector3 GetVector3(Vector2 pos, Vector3 core)
             {
                 Vector3 fresh = (Local_X * pos.X) + (Local_Y * -pos.Y);
@@ -1838,6 +1849,9 @@ namespace core.src
 
             //Cam 3 will be sideways
             windows[3].BuildOrthographic(Vector3.Left, Vector3.Up, Vector3.Forward);
+
+            //Commands
+            Program.Game.CommandConsole.RegisterCommand("setrange", setrange, "Defines the render range of a given window.");
         }
         public void prepoll()
         {
@@ -1952,6 +1966,48 @@ namespace core.src
             _sprites.End();
         }
 
+
+        public int setrange(string[] args)
+        {
+            if (args.Length < 2) return -1;
+
+            int tmp = 0;
+            float val = 0;
+
+            if (!int.TryParse(args[0], out tmp))
+                return -1;
+
+            if (!float.TryParse(args[1], out val))
+                return -1;
+
+            if (tmp < 0 || tmp >= 4) return 0;
+
+            windows[tmp].Range = val;
+
+            return 0;
+        }
+        public int pos(string[] args)
+        {
+            if (args.Length < 1) return -1;
+
+            int id = -1;
+            if (!int.TryParse(args[0], out id)) return -1;
+            
+            if (id < 0 || id >= windows.Length) return -1;
+
+            if (args.Length < 4)
+            {
+                Program.Game.CommandConsole.PushString(Program.Vec3ToString(windows[id].Position));
+                return 0;
+            }
+
+            float[] poss = new float[3];
+            for (int i = 0; i < 3; i++)
+            {
+                
+            }
+            return 0;
+        }
         public virtual void Destroy()
         {
             for (int i = 0; i < 4; i++)
@@ -2731,8 +2787,7 @@ namespace core.src
             {
                 Vector3 temp = CurrentBrush.physical.position;
                 CurrentBrush.physical.position = Vector3.Zero;
-
-                //TODO: Optional mode to render only selected polygon
+                
                 if (brushContentsList.curIndex != -1 && !rendersides)
                 {
                     CurrentBrush.physical.Draw(window.Camera, brushContentsList.curIndex);
@@ -2763,9 +2818,19 @@ namespace core.src
         //Orthos
         int selVert = -1;
         int mouseState = 0;
+        bool outlineShapes = false;
         public override void OrthoProcess(PerspectiveViewerWindow window, WindowContext context)
         {
             base.OrthoProcess(window, context);
+
+            if (Input.IsKeyPressed(Keys.R))
+            {
+                rendersides = !rendersides;
+            }
+            if (Input.IsKeyPressed(Keys.O))
+            {
+                outlineShapes = !outlineShapes;
+            }
 
             if (brushContentsList.curIndex != -1)
             {
@@ -2877,19 +2942,67 @@ namespace core.src
                 Vector3 temp = CurrentBrush.physical.position;
                 CurrentBrush.physical.position = Vector3.Zero;
 
-                if (brushContentsList.curIndex == -1) //whole shape
-                {
+                if (rendersides)
                     CurrentBrush.physical.Draw(window.Camera);
-
-                    CurrentBrush.physical.position = temp;
-                }
-
-                else //draw single poly + dots to represent its verts
-                {
+                else if (brushContentsList.curIndex != -1)
                     CurrentBrush.physical.Draw(window.Camera, brushContentsList.curIndex);
 
+                Program.SpritesBeginDefault(_sprites);
+
+                if (outlineShapes) //draw lines teehee (only for visible shapes)
+                {
+                    List<VertexModelAdvanced.Polygon> polygons = CurrentBrush.physical.Polygons;
+                    int closestID = -1;
+                    float closestLength = -1;
+                    //At the same time, check for point collisions
+                    for (int i = 0; i < polygons.Count; i++)
+                    {
+                        Vector2 center = Vector2.Zero;
+                        Vector2 firstPos = Vector2.Zero;
+                        for (int k = 0; k < polygons[i].vertexCount; k++)
+                        {
+                            Vector2 vert = window.MapToReal(window.GetVector2(polygons[i].GetVertexPoint(k)) - window.GetVector2(window.Position));
+                            if (k == 0)
+                                firstPos = vert;
+                            center += vert;
+                            for (int n = k+1, l = 0; n < polygons[i].vertexCount && l < 2; n++, l++)
+                            {
+                                Vector2 end = window.MapToReal(window.GetVector2(polygons[i].GetVertexPoint(n)) - window.GetVector2(window.Position));
+                                Program.DrawLine(_graphics, _sprites, vert, end, 3, false);
+                            }
+                        }
+                        center /= polygons[i].vertexCount;
+
+                        Vector2 msps = Input.GetMousePosition() - window.TargetOrigin;
+                        float centMSPS = (msps - center).LengthSquared();
+                        float meanLen = (firstPos - center).LengthSquared();
+                        meanLen /= 2;
+
+                        if (closestLength == -1 && centMSPS <= meanLen)
+                        {
+                            closestLength = centMSPS;
+                            closestID = i;
+                        }
+                        else if (centMSPS < closestLength && centMSPS <= meanLen)
+                        {
+                            closestID = i;
+                            closestLength = centMSPS;
+                        }
+                    }
+
+                    //Raise flag to lock to this pos
+                    if (closestID != -1)
+                    {
+                        if (Input.IsMousePressed(Input.MouseButton.LeftMouse) && selVert == -1)
+                        {
+                            brushContentsList.curIndex = closestID;
+                        }
+                    }
+                }
+
+                if (brushContentsList.curIndex != -1) //draw vert dots
+                {
                     VertexModelAdvanced.Polygon poly = CurrentBrush.physical.GetPoly(brushContentsList.curIndex);
-                    Program.SpritesBeginDefault(_sprites);
                     for (int i = 0; i < poly.verticies.Length; i++)
                     {
                         VertexPositionColorTexture det = poly.verticies[i];
@@ -2910,8 +3023,10 @@ namespace core.src
                             _sprites.Draw(circleTex, (pos - circleOffset), Color.White);
                         }
                     }
-                    _sprites.End();
                 }
+                
+                _sprites.End();
+                CurrentBrush.physical.position = temp;
             }
 
             base.OrthoRender(window, context);

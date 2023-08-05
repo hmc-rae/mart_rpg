@@ -62,6 +62,8 @@ namespace core
             CommandConsole.RegisterCommand("scene", loadscene, "Changes the current game scene.");
             curscene.Init(this);
 
+            Program.InitDrawLine(_graphics.GraphicsDevice);
+
         }
 
         protected override void LoadContent()
