@@ -6,7 +6,6 @@ using prog;
 using System;
 using System.Collections.Generic;
 using static core.src.PropertyViewer;
-using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace core.src
 {
@@ -35,6 +34,7 @@ namespace core.src
 
             Program.Game.Window.Title = "Map Editor";
             curViewer = mapEditor;
+            curViewer.BindCommands();
         }
 
         public override void OnFrame()
@@ -42,12 +42,16 @@ namespace core.src
             if (Input.IsKeyPressed(Keys.F1))
             {
                 Program.Game.Window.Title = "Map Editor";
+                curViewer.UnbindCommands();
                 curViewer = mapEditor;
+                curViewer.BindCommands();
             }
             if (Input.IsKeyPressed(Keys.F2))
             {
                 Program.Game.Window.Title = "Brush Editor";
+                curViewer.UnbindCommands();
                 curViewer = brushEditor;
+                curViewer.BindCommands();
             }
             curViewer.prepoll();
         }
@@ -1849,9 +1853,6 @@ namespace core.src
 
             //Cam 3 will be sideways
             windows[3].BuildOrthographic(Vector3.Left, Vector3.Up, Vector3.Forward);
-
-            //Commands
-            Program.Game.CommandConsole.RegisterCommand("setrange", setrange, "Defines the render range of a given window.");
         }
         public void prepoll()
         {
@@ -1966,7 +1967,17 @@ namespace core.src
             _sprites.End();
         }
 
-
+        public void BindCommands()
+        {
+            //Commands
+            Program.Game.CommandConsole.RegisterCommand("range", setrange, "Defines the render range of a given window.");
+            Program.Game.CommandConsole.RegisterCommand("pos", pos, "Gets or sets the position of the given window.");
+        }
+        public void UnbindCommands()
+        {
+            Program.Game.CommandConsole.DeregisterCommand("range");
+            Program.Game.CommandConsole.DeregisterCommand("pos");
+        }
         public int setrange(string[] args)
         {
             if (args.Length < 2) return -1;
@@ -2001,11 +2012,18 @@ namespace core.src
                 return 0;
             }
 
-            float[] poss = new float[3];
+            float[] poss =
+            {
+                windows[id].Position.X, windows[id].Position.Y, windows[id].Position.Z
+            };
+
             for (int i = 0; i < 3; i++)
             {
-                
+                if (args[i + 1].ToLower() == "*") continue;
+                if (!float.TryParse(args[i + 1], out poss[i])) return -1;
             }
+
+            windows[id].Position = new Vector3(poss[0], poss[1], poss[2]);
             return 0;
         }
         public virtual void Destroy()
@@ -2014,6 +2032,9 @@ namespace core.src
             {
                 windows[i].Destroy();
             }
+
+            Program.Game.CommandConsole.DeregisterCommand("pos");
+            Program.Game.CommandConsole.DeregisterCommand("range");
         }
     }
     public class MapEditor : PerspectiveViewer

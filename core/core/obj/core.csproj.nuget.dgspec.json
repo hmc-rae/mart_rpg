@@ -1,24 +1,24 @@
 {
   "format": 1,
   "restore": {
-    "D:\\Files\\Programming\\Projects\\mart_rpg\\core\\core\\core.csproj": {}
+    "C:\\Users\\harry\\Desktop\\the stuff\\PROJECTS\\mart_rpg\\core\\core\\core.csproj": {}
   },
   "projects": {
-    "D:\\Files\\Programming\\Projects\\mart_rpg\\core\\core\\core.csproj": {
+    "C:\\Users\\harry\\Desktop\\the stuff\\PROJECTS\\mart_rpg\\core\\core\\core.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "D:\\Files\\Programming\\Projects\\mart_rpg\\core\\core\\core.csproj",
+        "projectUniqueName": "C:\\Users\\harry\\Desktop\\the stuff\\PROJECTS\\mart_rpg\\core\\core\\core.csproj",
         "projectName": "core",
-        "projectPath": "D:\\Files\\Programming\\Projects\\mart_rpg\\core\\core\\core.csproj",
-        "packagesPath": "C:\\Users\\Harris\\.nuget\\packages\\",
-        "outputPath": "D:\\Files\\Programming\\Projects\\mart_rpg\\core\\core\\obj\\",
+        "projectPath": "C:\\Users\\harry\\Desktop\\the stuff\\PROJECTS\\mart_rpg\\core\\core\\core.csproj",
+        "packagesPath": "C:\\Users\\harry\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\harry\\Desktop\\the stuff\\PROJECTS\\mart_rpg\\core\\core\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
-          "C:\\Users\\Harris\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Users\\harry\\AppData\\Roaming\\NuGet\\NuGet.Config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
         "originalTargetFrameworks": [
-          "net6.0-windows"
+          "net6.0-windows7.0"
         ],
         "sources": {
           "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
@@ -59,8 +59,7 @@
             "net47",
             "net471",
             "net472",
-            "net48",
-            "net481"
+            "net48"
           ],
           "assetTargetFallback": true,
           "warn": true,
@@ -72,7 +71,7 @@
               "privateAssets": "none"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\6.0.402\\RuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\6.0.200\\RuntimeIdentifierGraph.json"
         }
       }
     }

@@ -25,7 +25,7 @@ namespace prog
         {
             InternalScreen = new Vector2(1920, 1080);
             //ExternalScreen = new Vector2(1366, 768);
-            ExternalScreen = new Vector2(1920, 1080) * 1.25f;
+            ExternalScreen = new Vector2(1920, 1080) * 0.5f;
 
             Game = new martgame();
             
