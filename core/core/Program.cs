@@ -13,6 +13,8 @@ namespace prog
     {
         internal static Color UI_COLOR = Color.BlanchedAlmond;
         internal static Color UI_ALT_COLOR = Color.DarkGray;
+        public const float RAD_CONST = (float)(180 / Math.PI);
+        public const float DEG_CONST = (float)(1 / (180 / Math.PI));
         public static martgame Game;
 
         //Internal screen size : game space
@@ -25,7 +27,7 @@ namespace prog
         {
             InternalScreen = new Vector2(1920, 1080);
             //ExternalScreen = new Vector2(1366, 768);
-            ExternalScreen = new Vector2(1920, 1080) * 0.5f;
+            ExternalScreen = new Vector2(1920, 1080) * 1.0f;
 
             Game = new martgame();
             

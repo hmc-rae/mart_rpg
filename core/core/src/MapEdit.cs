@@ -94,6 +94,15 @@ namespace core.src
             protected static int id_master = 0;
             protected int id;
 
+            public void SetVertsColor(Color c)
+            {
+                for (int i = 0; i < verticies.Length; i++)
+                {
+                    verticies[i].Color = c;
+                }
+                Compile();
+            }
+
             public Polygon(GraphicsDevice device, int points, int prims, PrimitiveType type)
             {
                 vertexCount = points;
@@ -116,6 +125,29 @@ namespace core.src
             public Polygon(GraphicsDevice device, int points, int prims, PrimitiveType type, Vector3[] vertPoints, bool autoColor) : this(device, points, prims, type)
             {
                 SetVerts(vertPoints, autoColor);
+            }
+
+            public Polygon(Polygon origin, bool cmp = true)
+            {
+                verticies = new VertexPositionColorTexture[origin.verticies.Length];
+                for (int i = 0; i < verticies.Length; i++)
+                {
+                    verticies[i] = origin.verticies[i];
+                }
+
+                texture = origin.texture;
+                _graphics = origin._graphics;
+                id = id_master++;
+                built = origin.built;
+                textureBuilt = origin.textureBuilt;
+                primitiveType = origin.primitiveType;
+                primitiveCount = origin.primitiveCount;
+                vertexCount = origin.vertexCount;
+
+                buffer = new VertexBuffer(_graphics, typeof(VertexPositionColorTexture), vertexCount, BufferUsage.WriteOnly);
+
+                if (cmp)
+                    Compile();
             }
 
             public virtual void Compile()
@@ -143,7 +175,7 @@ namespace core.src
                     }
                     else
                     {
-                        verticies[i].Color = Color.GreenYellow;
+                        verticies[i].Color = Color.DarkOliveGreen;
                     }
                 }
 
@@ -206,6 +238,19 @@ namespace core.src
             public SharedPolygon(GraphicsDevice device, int points, int prims, PrimitiveType type, Vector3 origin, List<SharedPoint> ppoints, Vector3[] vertPoints, bool autoColor, float rounding = 0.1f) : this(device, points, prims, type, origin, ppoints)
             {
                 SetVerts(vertPoints, autoColor, rounding);
+            }
+
+            public SharedPolygon(SharedPolygon origin, List<SharedPoint> ppoints) : base(origin as Polygon, false)
+            {
+                _points = ppoints;
+                core = origin.core;
+                vertexReferences = new int[origin.vertexReferences.Length];
+                for (int i = 0; i < vertexReferences.Length; i++)
+                {
+                    vertexReferences[i] = origin.vertexReferences[i];
+                }
+
+                Compile();
             }
 
             /// <summary>
@@ -405,6 +450,14 @@ namespace core.src
                 USE = 0;
                 update = false;
             }
+
+            public SharedPoint(SharedPoint origin)
+            {
+                ID = origin.ID;
+                pos = origin.pos;
+                USE = origin.USE;
+                update = origin.update;
+            }
         }
 
         public const int COMPILE_ROTATION = 1;
@@ -417,8 +470,9 @@ namespace core.src
         private List<Polygon> _polys;
 
         public Vector3 position;
+        public Vector3 scale;
 
-        public Vector3 r_X, r_Y, r_Z;
+        public RotationProfile profile;
 
         public VertexModelAdvanced(GraphicsDevice device)
         {
@@ -426,6 +480,39 @@ namespace core.src
             _polys = new List<Polygon>();
 
             points = new List<SharedPoint>();
+            profile = new RotationProfile();
+            scale = Vector3.One;
+            position = Vector3.Zero;
+        }
+
+        public VertexModelAdvanced(VertexModelAdvanced copy)
+        {
+            _graphics = copy._graphics;
+
+            _polys = new List<Polygon>();
+            points = new List<SharedPoint>();
+            for (int i = 0; i < copy.points.Count; i++)
+            {
+                points.Add(new SharedPoint(copy.points[i]));
+            }
+            for (int i = 0; i < copy.Polygons.Count; i++)
+            {
+                if (copy.Polygons[i] as SharedPolygon != null)
+                {
+                    //make a sharedpoly copy
+                    SharedPolygon tmp = new SharedPolygon(copy.Polygons[i] as SharedPolygon, points);
+                    _polys.Add(tmp);
+                }
+                else
+                {
+                    Polygon tmp = new Polygon(copy.Polygons[i]);
+                    _polys.Add(tmp);
+                }
+            }
+
+            position = copy.position;
+            profile = copy.profile;
+            scale = copy.scale;
         }
 
         public void Destroy()
@@ -448,9 +535,9 @@ namespace core.src
         /// Complicates the given polygon and adds it to the model
         /// </summary>
         /// <param name="poly"></param>
-        public void AddComplexPoly(Polygon poly)
+        public void AddComplexPoly(Polygon poly, float rounding = 0.1f)
         {
-            _polys.Add(new SharedPolygon(_graphics, poly.vertexCount, poly.primitiveCount, poly.primitiveType, position, points, poly.verticies));
+            _polys.Add(new SharedPolygon(_graphics, poly.vertexCount, poly.primitiveCount, poly.primitiveType, position, points, poly.verticies, rounding));
         }
         /// <summary>
         /// Adds a complex polygon to the model.
@@ -547,7 +634,7 @@ namespace core.src
 
         public void Draw(Camera camera)
         {
-            camera.BindWorldPosition(position);
+            camera.BindWorldPosition(position, profile, scale);
             for (int n = 0; n < _polys.Count; n++)
             {
                 if (!_polys[n].built) continue;
@@ -570,7 +657,7 @@ namespace core.src
             if (n < 0 || n >= _polys.Count) return;
             if (!_polys[n].built) return;
 
-            camera.BindWorldPosition(position);
+            camera.BindWorldPosition(position, profile, scale);
 
             if (_polys[n].textureBuilt)
                 camera.BindTexture(_polys[n].texture);
@@ -624,9 +711,7 @@ namespace core.src
             else
                 temp.AddComplexPoly(new Polygon(device, 4, 2, PrimitiveType.TriangleStrip, Generate4Point(Vector3.UnitZ * -1, Vector3.UnitX, Vector3.UnitY)));
 
-            temp.r_X = Vector3.UnitX;
-            temp.r_Y = Vector3.UnitY;
-            temp.r_Z = Vector3.UnitZ;
+            temp.profile = new RotationProfile();
 
             temp.Recompile(COMPILE_POLYGONS & COMPILE_ROTATION);
 
@@ -672,9 +757,7 @@ namespace core.src
             else
                 temp.AddComplexPoly(new Polygon(device, 4, 2, PrimitiveType.TriangleStrip, Generate4Point(Vector3.UnitZ * -1 * dims, Vector3.UnitX * dims, Vector3.UnitY * dims)));
 
-            temp.r_X = Vector3.UnitX;
-            temp.r_Y = Vector3.UnitY;
-            temp.r_Z = Vector3.UnitZ;
+            temp.profile = new RotationProfile();
 
             temp.Recompile(COMPILE_POLYGONS & COMPILE_ROTATION);
 
@@ -685,6 +768,7 @@ namespace core.src
         {
             VertexModelAdvanced temp = new VertexModelAdvanced(device);
 
+            bool flipsw = true;
             for (float x = -xRange; x < xRange; x += step)
             {
                 for (float z = -zRange; z < zRange; z += step)
@@ -698,11 +782,20 @@ namespace core.src
                     };
 
                     Polygon tPoly = new Polygon(device, 4, 2, PrimitiveType.TriangleStrip, autoPoints, false);
+
+                    if (flipsw)
+                        tPoly.SetVertsColor(Color.Beige);
+                    else
+                        tPoly.SetVertsColor(Color.SlateGray);
+
                     if (complex)
                         temp.AddComplexPoly(tPoly);
                     else
                         temp.AddBasicPoly(tPoly);
+
+                    flipsw = !flipsw;
                 }
+                flipsw = !flipsw;
             }
 
             return temp;
@@ -1146,6 +1239,8 @@ namespace core.src
             public bool trysetTemp;
             public string TempText;
 
+            public int UsableValue;
+
             private Func<PropertyWidget, int> getStr;
             private Func<PropertyWidget, int> attSetStr;
 
@@ -1153,6 +1248,7 @@ namespace core.src
 
             private void setup(GraphicsDevice device, Vector2 pos, Vector2 siz, bool dostring, string disstring, Func<PropertyWidget, int> get, Func<PropertyWidget, int> set)
             {
+                UsableValue = 0;
                 _graphics = device;
                 position = pos;
                 size = siz;
@@ -1181,6 +1277,18 @@ namespace core.src
             {
                 rect.Dispose();
                 button.Destroy();
+            }
+
+            public void ForceSet()
+            {
+                if (trysetTemp)
+                {
+                    attSetStr(this);
+                    getStr(this);
+                    trysetTemp = false;
+                    button.Release();
+                    TempText = "";
+                }
             }
 
             public PropertyWidget(GraphicsDevice graphics, Vector2 pos, Vector2 siz)
@@ -1245,11 +1353,14 @@ namespace core.src
                 }
                 else
                 {
-                    attSetStr(this);
-                    getStr(this);
-                    trysetTemp = false;
-                    button.Release();
-                    TempText = "";
+                    if (trysetTemp)
+                    {
+                        attSetStr(this);
+                        getStr(this);
+                        trysetTemp = false;
+                        button.Release();
+                        TempText = "";
+                    }   
                 }
             }
             public virtual void Render(SpriteBatch _sprites, SpriteFont font, Vector2 origin, int ySub, Vector2 within)
@@ -1269,6 +1380,7 @@ namespace core.src
                 else
                 {
                     getStr(this);
+
                     _sprites.DrawString(font, DisplayedText, renPos, Color.White);
                 }
 
@@ -1424,6 +1536,19 @@ namespace core.src
         public void AddPropertyWidget(PropertyWidget widget)
         {
             _widgets.Add(widget);
+            float y = widget.position.Y + widget.size.Y;
+            if (y >= size.Y + scrollMax)
+            {
+                scrollMax = (int)(y - size.Y) * 2;
+            }
+        }
+
+        public void ForceAllWidgets()
+        {
+            for (int i = 0; i < _widgets.Count; i++)
+            {
+                _widgets[i].ForceSet();
+            }
         }
 
         public void Poll()
@@ -1502,10 +1627,40 @@ namespace core.src
 
         //Add all details here
 
+        public bool IsSolid;        //Whether or not the brush will be generated into the BSP
+        public bool IsVisible;      //Whether or not the brush will be saved to the physical map data
+
+        public bool IsDynamic;      //Whether or not the brush will move through a predetermined path.
+        public bool IsTrigger;      //Whether or not the brush acts as a trigger when interacted with;
+        public bool IsLighting;     //If the brush acts as a region for lighting
+        public bool IsAnchor;       //If the brush will be registered as an origin point in a list of origins (spawnpoints usually)
+
+        //Dynamic details
+        public Brush DynamicInclusionZone;  //If dynamic AND solid, define the zone that it will move through here.
+                                            //Might be able to generate this based on the motion pack
+        //Insert a motion detail pack
+
+        //Trigger
+        public ulong TriggerFlag;   //Dedicated flag to act upon, can be either an ID or a quickflag 
+        public bool TriggerQuickFlag;   //If true, act as quick flag (bitflag) - else, access a whole table of flags.
+        public int TriggerFlagAction;   //What to do on the flag (raise, lower, etc). An enum.
+
+        //Anchor
+        public ulong AnchorID;
+
+
         public Brush()
         {
             id = id_const++;
             name = "Brush";
+        }
+
+        public Brush(Brush origin)
+        {
+            id = id_const++;
+            name = origin.name;
+
+            physical = new VertexModelAdvanced(origin.physical);
         }
 
         public void Bind(VertexModelAdvanced mod)
@@ -1609,14 +1764,11 @@ namespace core.src
         private GameScene parent;
         private SpriteBatch _sprites;
 
-        public MapFile(GameScene scene)
+        public MapFile(GameScene scene, Vector2 pos, Vector2 siz)
         {
             parent = scene;
             _sprites = parent._game._spriteBatch;
 
-            Vector2 pos = new Vector2(Program.InternalScreen.Y, 0);
-            Vector2 siz = new Vector2((Program.InternalScreen.X - Program.InternalScreen.Y) / 3f, Program.InternalScreen.Y / 2);
-            pos.X += siz.X;
             mapBrushes = new List<Brush>();
             mapBrushViewer = new ListViewer<Brush>(mapBrushes, 10, pos, siz, Program.Game.Content);
         }
@@ -1827,6 +1979,9 @@ namespace core.src
 
             Attention_Level = ATTENTION_UNFOCUSED;
 
+            rotator = new Rotor();
+            rotator.Multiplier = ROTATOR_SENS;
+
             _targetID = -1;
 
             windows = new PerspectiveViewerWindow[4];
@@ -1915,7 +2070,30 @@ namespace core.src
         public virtual void AddlRender() { }
 
         //Default perspective mode
-        public virtual void DefaultProcess(PerspectiveViewerWindow window) { }
+        protected Rotor rotator;
+        protected const float ROTATOR_SENS = 1;
+        protected const float FREELOOK_SPEED = 5;
+        public virtual void DefaultProcess(PerspectiveViewerWindow window) 
+        {
+            float az = Input.KeyDelta(Keys.Right, Keys.Left) * (float)Program.Game.FrameTime;
+            float el = Input.KeyDelta(Keys.Up, Keys.Down) * (float)Program.Game.FrameTime;
+            rotator.Update(az, el);
+
+            float lr = Input.KeyDelta(Keys.D, Keys.A) * (float)Program.Game.FrameTime * FREELOOK_SPEED;
+            Vector2 tmp = rotator.Azimuth_V;
+            Vector3 movTmp = new Vector3(-tmp.Y, 0, tmp.X) * lr;
+
+            float fd = Input.KeyDelta(Keys.W, Keys.S) * (float)Program.Game.FrameTime * FREELOOK_SPEED;
+            movTmp += fd* new Vector3(tmp.X, 0, tmp.Y);
+
+            float ud = Input.KeyDelta(Keys.Space, Keys.LeftControl) * (float)Program.Game.FrameTime * FREELOOK_SPEED;
+            movTmp += ud * Vector3.Up;
+
+            window.Position += movTmp;
+            window.Camera.Position = window.Position;
+
+            window.Camera.TargetAngle = rotator.Angle;
+        }
         public virtual void DefaultRender(PerspectiveViewerWindow window) { }
 
         //Orthographic process (will apply to all 3 windows)
@@ -2042,30 +2220,482 @@ namespace core.src
         public BrushLibrary library;
         public MapFile map;
 
+        public PropertyViewer mapBrushProperties;
+
+        protected bool viewAll;
+
         public MapEditor(GameScene parent, BrushLibrary lib) :  base(parent)
         {
             library = lib;
-            map = new MapFile(parent);
+            viewAll = true;
+
+            Vector2 pos = new Vector2(Program.InternalScreen.Y, 0);
+            Vector2 siz = new Vector2((Program.InternalScreen.X - Program.InternalScreen.Y) / 3f, Program.InternalScreen.Y / 2);
+
+            pos.X += siz.X;
+            map = new MapFile(parent, pos, siz);
+
+            pos.Y += siz.Y;
+            mapBrushProperties = new PropertyViewer(_graphics, pos, siz, 0);
+
+            SetupPropertyViewers();
         }
 
+        public void SetupPropertyViewers()
+        {
+            Vector2 pos = new Vector2(15, 30);
+            Vector2 siz = new Vector2(60, 30);
+
+            //mapBrushProperties
+            {
+                siz.X = 250;
+                //name
+                mapBrushProperties.AddPropertyWidget(new PropertyWidget(_graphics, pos, siz, "Name", (PropertyWidget widg) =>
+                {
+                    if (map.mapBrushViewer.curIndex == -1)
+                    {
+                        widg.DisplayedText = "UNDF";
+                        return -1;
+                    }
+                    widg.DisplayedText = map.mapBrushes[map.mapBrushViewer.curIndex].name;
+                    return 0;
+                }, (PropertyWidget widg) =>
+                {
+                    if (map.mapBrushViewer.curIndex == -1)
+                    {
+                        return -1;
+                    }
+                    map.mapBrushes[map.mapBrushViewer.curIndex].name = widg.TempText;
+                    return 0;
+                }));
+
+                siz.X = 80;
+                pos.Y += 60;
+
+                //position X
+                mapBrushProperties.AddPropertyWidget(new PropertyWidget(_graphics, pos, siz, "Position", (PropertyWidget widg) =>
+                {
+                    if (map.mapBrushViewer.curIndex == -1)
+                    {
+                        widg.DisplayedText = "UNDF";
+                        return -1;
+                    }
+                    widg.DisplayedText = String.Format("{0:0.00}", map.mapBrushes[map.mapBrushViewer.curIndex].physical.position.X);
+                    return 0;
+                }, (PropertyWidget widg) =>
+                {
+                    if (map.mapBrushViewer.curIndex == -1)
+                    {
+                        return -1;
+                    }
+                    float temp = 0;
+                    if (float.TryParse(widg.TempText, out temp))
+                    {
+                        map.mapBrushes[map.mapBrushViewer.curIndex].physical.position.X = temp;
+                    }
+                    return 0;
+                }));
+
+                pos.X += 90;
+                //position Y
+                mapBrushProperties.AddPropertyWidget(new PropertyWidget(_graphics, pos, siz, (PropertyWidget widg) =>
+                {
+                    if (map.mapBrushViewer.curIndex == -1)
+                    {
+                        widg.DisplayedText = "UNDF";
+                        return -1;
+                    }
+                    widg.DisplayedText = String.Format("{0:0.00}", map.mapBrushes[map.mapBrushViewer.curIndex].physical.position.Y);
+                    return 0;
+                }, (PropertyWidget widg) =>
+                {
+                    if (map.mapBrushViewer.curIndex == -1)
+                    {
+                        return -1;
+                    }
+                    float temp = 0;
+                    if (float.TryParse(widg.TempText, out temp))
+                    {
+                        map.mapBrushes[map.mapBrushViewer.curIndex].physical.position.Y = temp;
+                    }
+                    return 0;
+                }));
+
+                pos.X += 90;
+                //position Z
+                mapBrushProperties.AddPropertyWidget(new PropertyWidget(_graphics, pos, siz, (PropertyWidget widg) =>
+                {
+                    if (map.mapBrushViewer.curIndex == -1)
+                    {
+                        widg.DisplayedText = "UNDF";
+                        return -1;
+                    }
+                    widg.DisplayedText = String.Format("{0:0.00}", map.mapBrushes[map.mapBrushViewer.curIndex].physical.position.Z);
+                    return 0;
+                }, (PropertyWidget widg) =>
+                {
+                    if (map.mapBrushViewer.curIndex == -1)
+                    {
+                        return -1;
+                    }
+                    float temp = 0;
+                    if (float.TryParse(widg.TempText, out temp))
+                    {
+                        map.mapBrushes[map.mapBrushViewer.curIndex].physical.position.Z = temp;
+                    }
+                    return 0;
+                }));
+
+                //Rotation
+                pos.X -= 180;
+                pos.Y += 60;
+
+                mapBrushProperties.AddPropertyWidget(new PropertyWidget(_graphics, pos, siz, "Azimuth", (PropertyWidget widg) =>
+                {
+                    if (map.mapBrushViewer.curIndex == -1)
+                    {
+                        widg.DisplayedText = "UNDF";
+                        return -1;
+                    }
+                    widg.DisplayedText = String.Format("{0:0.00}", map.mapBrushes[map.mapBrushViewer.curIndex].physical.profile.ang2d.X * Program.RAD_CONST);
+                    return 0;
+                }, (PropertyWidget widg) =>
+                {
+                    if (map.mapBrushViewer.curIndex == -1) return -1;
+                    if (float.TryParse(widg.TempText, out float tmp))
+                    {
+                        RotationProfile ol = map.mapBrushes[map.mapBrushViewer.curIndex].physical.profile;
+
+                        map.mapBrushes[map.mapBrushViewer.curIndex].physical.profile = new RotationProfile(tmp * Program.DEG_CONST, ol.ang2d.Y, ol.roll);
+                    }
+                    return 0;
+                }));
+
+                pos.X += 90;
+
+                mapBrushProperties.AddPropertyWidget(new PropertyWidget(_graphics, pos, siz, "Elevation", (PropertyWidget widg) =>
+                {
+                    if (map.mapBrushViewer.curIndex == -1)
+                    {
+                        widg.DisplayedText = "UNDF";
+                        return -1;
+                    }
+                    widg.DisplayedText = String.Format("{0:0.00}", map.mapBrushes[map.mapBrushViewer.curIndex].physical.profile.ang2d.Y * Program.RAD_CONST);
+                    return 0;
+                }, (PropertyWidget widg) =>
+                {
+                    if (map.mapBrushViewer.curIndex == -1) return -1;
+                    if (float.TryParse(widg.TempText, out float tmp))
+                    {
+                        RotationProfile ol = map.mapBrushes[map.mapBrushViewer.curIndex].physical.profile;
+
+                        map.mapBrushes[map.mapBrushViewer.curIndex].physical.profile = new RotationProfile(ol.ang2d.X, tmp * Program.DEG_CONST, ol.roll);
+                    }
+                    return 0;
+                }));
+
+                pos.X += 90;
+                mapBrushProperties.AddPropertyWidget(new PropertyWidget(_graphics, pos, siz, "Roll", (PropertyWidget widg) =>
+                {
+                    if (map.mapBrushViewer.curIndex == -1)
+                    {
+                        widg.DisplayedText = "UNDF";
+                        return -1;
+                    }
+                    widg.DisplayedText = String.Format("{0:0.00}", map.mapBrushes[map.mapBrushViewer.curIndex].physical.profile.roll * Program.RAD_CONST);
+                    return 0;
+                }, (PropertyWidget widg) =>
+                {
+                    if (map.mapBrushViewer.curIndex == -1) return -1;
+                    if (float.TryParse(widg.TempText, out float tmp))
+                    {
+                        map.mapBrushes[map.mapBrushViewer.curIndex].physical.profile.roll = tmp * Program.DEG_CONST;
+                    }
+                    return 0;
+                }));
+
+                //Scale
+                pos.Y += 60;
+                pos.X -= 180;
+                //position X
+                mapBrushProperties.AddPropertyWidget(new PropertyWidget(_graphics, pos, siz, "Scale", (PropertyWidget widg) =>
+                {
+                    if (map.mapBrushViewer.curIndex == -1)
+                    {
+                        widg.DisplayedText = "UNDF";
+                        return -1;
+                    }
+                    widg.DisplayedText = String.Format("{0:0.00}", map.mapBrushes[map.mapBrushViewer.curIndex].physical.scale.X);
+                    return 0;
+                }, (PropertyWidget widg) =>
+                {
+                    if (map.mapBrushViewer.curIndex == -1)
+                    {
+                        return -1;
+                    }
+                    float temp = 0;
+                    if (float.TryParse(widg.TempText, out temp))
+                    {
+                        map.mapBrushes[map.mapBrushViewer.curIndex].physical.scale.X = temp;
+                    }
+                    return 0;
+                }));
+
+                pos.X += 90;
+                //position Y
+                mapBrushProperties.AddPropertyWidget(new PropertyWidget(_graphics, pos, siz, (PropertyWidget widg) =>
+                {
+                    if (map.mapBrushViewer.curIndex == -1)
+                    {
+                        widg.DisplayedText = "UNDF";
+                        return -1;
+                    }
+                    widg.DisplayedText = String.Format("{0:0.00}", map.mapBrushes[map.mapBrushViewer.curIndex].physical.scale.Y);
+                    return 0;
+                }, (PropertyWidget widg) =>
+                {
+                    if (map.mapBrushViewer.curIndex == -1)
+                    {
+                        return -1;
+                    }
+                    float temp = 0;
+                    if (float.TryParse(widg.TempText, out temp))
+                    {
+                        map.mapBrushes[map.mapBrushViewer.curIndex].physical.scale.Y = temp;
+                    }
+                    return 0;
+                }));
+
+                pos.X += 90;
+                //position Z
+                mapBrushProperties.AddPropertyWidget(new PropertyWidget(_graphics, pos, siz, (PropertyWidget widg) =>
+                {
+                    if (map.mapBrushViewer.curIndex == -1)
+                    {
+                        widg.DisplayedText = "UNDF";
+                        return -1;
+                    }
+                    widg.DisplayedText = String.Format("{0:0.00}", map.mapBrushes[map.mapBrushViewer.curIndex].physical.scale.Z);
+                    return 0;
+                }, (PropertyWidget widg) =>
+                {
+                    if (map.mapBrushViewer.curIndex == -1)
+                    {
+                        return -1;
+                    }
+                    float temp = 0;
+                    if (float.TryParse(widg.TempText, out temp))
+                    {
+                        map.mapBrushes[map.mapBrushViewer.curIndex].physical.scale.Z = temp;
+                    }
+                    return 0;
+                }));
+
+                pos.X -= 180;
+                //Checks (basic, not detailed like the map)
+                siz.X = 30;
+                //IsSolid
+                pos.Y += 60;
+                mapBrushProperties.AddPropertyWidget(new PropertyWidget.ButtonWidget(_graphics, pos, siz, "IsSolid", (PropertyWidget widg) =>
+                {
+                    if (map.mapBrushViewer.curIndex == -1) return -1;
+                    (widg as PropertyWidget.ButtonWidget).State = map.mapBrushes[map.mapBrushViewer.curIndex].IsSolid;
+                    return 0;
+                }, (PropertyWidget widg) =>
+                {
+                    if (map.mapBrushViewer.curIndex == -1) return -1;
+                    map.mapBrushes[map.mapBrushViewer.curIndex].IsSolid = !map.mapBrushes[map.mapBrushViewer.curIndex].IsSolid;
+                    return 0;
+                })
+                {
+                    HighText = "T",
+                    LowText = "F",
+                    DoText = true
+                });
+
+                //IsVisible
+                pos.Y += 60;
+                mapBrushProperties.AddPropertyWidget(new PropertyWidget.ButtonWidget(_graphics, pos, siz, "IsVisible", (PropertyWidget widg) =>
+                {
+                    if (map.mapBrushViewer.curIndex == -1) return -1;
+                    (widg as PropertyWidget.ButtonWidget).State = map.mapBrushes[map.mapBrushViewer.curIndex].IsVisible;
+                    return 0;
+                }, (PropertyWidget widg) =>
+                {
+                    if (map.mapBrushViewer.curIndex == -1) return -1;
+                    map.mapBrushes[map.mapBrushViewer.curIndex].IsVisible = !map.mapBrushes[map.mapBrushViewer.curIndex].IsVisible;
+                    return 0;
+                })
+                {
+                    HighText = "T",
+                    LowText = "F",
+                    DoText = true
+                });
+
+                //IsDynamic
+                pos.Y += 60;
+                mapBrushProperties.AddPropertyWidget(new PropertyWidget.ButtonWidget(_graphics, pos, siz, "IsDynamic", (PropertyWidget widg) =>
+                {
+                    if (map.mapBrushViewer.curIndex == -1) return -1;
+                    (widg as PropertyWidget.ButtonWidget).State = map.mapBrushes[map.mapBrushViewer.curIndex].IsDynamic;
+                    return 0;
+                }, (PropertyWidget widg) =>
+                {
+                    if (map.mapBrushViewer.curIndex == -1) return -1;
+                    map.mapBrushes[map.mapBrushViewer.curIndex].IsDynamic = !map.mapBrushes[map.mapBrushViewer.curIndex].IsDynamic;
+                    return 0;
+                })
+                {
+                    HighText = "T",
+                    LowText = "F",
+                    DoText = true
+                });
+
+                //IsTrigger
+                pos.Y += 60;
+                mapBrushProperties.AddPropertyWidget(new PropertyWidget.ButtonWidget(_graphics, pos, siz, "IsTrigger", (PropertyWidget widg) =>
+                {
+                    if (map.mapBrushViewer.curIndex == -1) return -1;
+                    (widg as PropertyWidget.ButtonWidget).State = map.mapBrushes[map.mapBrushViewer.curIndex].IsTrigger;
+                    return 0;
+                }, (PropertyWidget widg) =>
+                {
+                    if (map.mapBrushViewer.curIndex == -1) return -1;
+                    map.mapBrushes[map.mapBrushViewer.curIndex].IsTrigger = !map.mapBrushes[map.mapBrushViewer.curIndex].IsTrigger;
+                    return 0;
+                })
+                {
+                    HighText = "T",
+                    LowText = "F",
+                    DoText = true
+                });
+
+                //IsLighting
+                pos.Y += 60;
+                mapBrushProperties.AddPropertyWidget(new PropertyWidget.ButtonWidget(_graphics, pos, siz, "IsLighting", (PropertyWidget widg) =>
+                {
+                    if (map.mapBrushViewer.curIndex == -1) return -1;
+                    (widg as PropertyWidget.ButtonWidget).State = map.mapBrushes[map.mapBrushViewer.curIndex].IsLighting;
+                    return 0;
+                }, (PropertyWidget widg) =>
+                {
+                    if (map.mapBrushViewer.curIndex == -1) return -1;
+                    map.mapBrushes[map.mapBrushViewer.curIndex].IsLighting = !map.mapBrushes[map.mapBrushViewer.curIndex].IsLighting;
+                    return 0;
+                })
+                {
+                    HighText = "T",
+                    LowText = "F",
+                    DoText = true
+                });
+
+                //IsAnchor
+                pos.Y += 60;
+                mapBrushProperties.AddPropertyWidget(new PropertyWidget.ButtonWidget(_graphics, pos, siz, "IsAnchor", (PropertyWidget widg) =>
+                {
+                    if (map.mapBrushViewer.curIndex == -1) return -1;
+                    (widg as PropertyWidget.ButtonWidget).State = map.mapBrushes[map.mapBrushViewer.curIndex].IsAnchor;
+                    return 0;
+                }, (PropertyWidget widg) =>
+                {
+                    if (map.mapBrushViewer.curIndex == -1) return -1;
+                    map.mapBrushes[map.mapBrushViewer.curIndex].IsAnchor = !map.mapBrushes[map.mapBrushViewer.curIndex].IsAnchor;
+                    return 0;
+                })
+                {
+                    HighText = "T",
+                    LowText = "F",
+                    DoText = true
+                });
+            }
+        }
         public override void Destroy()
         {
             base.Destroy();
             map.Destroy();
+            mapBrushProperties.Destroy();
         }
         public override void Poll()
         {
             base.Poll();
             map.Poll();
             library.Poll();
+            mapBrushProperties.Poll();
+
+            if (library.button.ButtonDown)
+            {
+                if (library.brushViewer.curIndex != -1 && Input.IsKeyPressed(Keys.C))
+                {
+                    //paste into mapfile
+                    Brush tmp = new Brush(library.brushes[library.brushViewer.curIndex]);
+                    //Find pos to place it
+                    tmp.physical.position = Vector3.Zero;
+
+                    map.mapBrushes.Add(tmp);
+                }
+            }
+
+            if (map.mapBrushViewer.ButtonActive)
+            {
+                if (map.mapBrushViewer.curIndex != -1)
+                {
+                    var pr = (_parent as MapEdit);
+                    if (pr != null)
+                    {
+                        pr.brushEditor.BindBrush(map.mapBrushes[map.mapBrushViewer.curIndex]);
+                    }
+                }
+            }
         }
         public override void AddlRender()
         {
             Program.SpritesBeginDefault(_sprites);
             map.Render(false);
             library.Render(false);
+            mapBrushProperties.Render(false);
 
             _sprites.End();
+        }
+
+        public override void DefaultRender(PerspectiveViewerWindow window)
+        {
+            _graphics.Clear(Color.CornflowerBlue);
+            _graphics.DepthStencilState = _dss;
+
+            window.Camera.SetupDraw();
+
+            if (map.mapBrushViewer.curIndex != -1 && !viewAll)
+            {
+                //render specific model
+            }
+            else
+            {
+                for (int i = 0; i < map.mapBrushes.Count; i++)
+                {
+                    map.mapBrushes[i].physical.Draw(window.Camera);
+                }
+            }
+            base.DefaultRender(window);
+        }
+        public override void OrthoRender(PerspectiveViewerWindow window, WindowContext context)
+        {
+            _graphics.Clear(Color.Black);
+
+            window.Camera.SetupDraw();
+
+            if (map.mapBrushViewer.curIndex != -1 && !viewAll)
+            {
+                //render specific model
+            }
+            else
+            {
+                for (int i = 0; i < map.mapBrushes.Count; i++)
+                {
+                    map.mapBrushes[i].physical.Draw(window.Camera);
+                }
+            }
+
+            base.OrthoRender(window, context);
         }
     }
     public class BrushEditor : PerspectiveViewer
@@ -2468,143 +3098,327 @@ namespace core.src
                 catch (Exception e) { }
                 return 0;
             }));
+
+            pos = new Vector2(15, 30);
+            siz = new Vector2(250, 30);
+
+            //brush properties
+            {
+                brushPropertyViewer.AddPropertyWidget(new PropertyWidget(_graphics, pos, siz, "Name", (PropertyWidget widg) =>
+                {
+                    if (CurrentBrush == null)
+                    {
+                        widg.DisplayedText = "UNDF";
+                        return -1;
+                    }
+                    widg.DisplayedText = CurrentBrush.name;
+                    return 0;
+                }, (PropertyWidget widg) =>
+                {
+                    if (CurrentBrush == null) return -1;
+                    CurrentBrush.name = widg.TempText;
+                    return 0;
+                }));
+            }
         }
 
+        //library new
         protected bool lib_isMesh, lib_isComplx;
         protected float lib_x, lib_y, lib_z;
+        //polygon new
+        protected bool poly_isComplx, poly_Is3Side;
+        protected float poly_complex_snapto;
+        protected Vector3[] poly_points = new Vector3[4];
         public void SetupDialogBoxes()
         {
-            //library new dialog : libraryNewDialog
-
             Vector2 pos = new Vector2(15, 30);
             Vector2 siz = new Vector2(60, 30);
 
-            //lib_isMesh
-            lib_isMesh = false; //if true, mesh: if false, cube
-            libraryNewDialog.AddPropertyWidget(new PropertyViewer.PropertyWidget.ButtonWidget(_graphics, pos, siz, "GenMesh?", (PropertyViewer.PropertyWidget widg) => //GET
+            //library new dialog : libraryNewDialog
             {
-                (widg as PropertyViewer.PropertyWidget.ButtonWidget).State = lib_isMesh;
-                return 0;
-            }, (PropertyViewer.PropertyWidget widg) => //SET
-            {
-                lib_isMesh = !lib_isMesh;
-                return 0;
-            })
-            {
-                HighText = "Mesh", //display for high
-                LowText = "Cube", //temp for low
-                DoText = true
-            });
-
-            //lib_isComplx
-            pos.X += 175;
-            lib_isComplx = false; //if true, complex: if false, simple
-            libraryNewDialog.AddPropertyWidget(new PropertyViewer.PropertyWidget.ButtonWidget(_graphics, pos, siz, "Complex?", (PropertyViewer.PropertyWidget widg) => //GET
-            {
-                (widg as PropertyViewer.PropertyWidget.ButtonWidget).State = lib_isComplx;
-                return 0;
-            }, (PropertyViewer.PropertyWidget widg) => //SET
-            {
-                lib_isComplx = !lib_isComplx;
-                return 0;
-            })
-            {
-                HighText = "C", //display for high
-                LowText = "S", //temp for low
-                DoText = true
-            });
-
-            //generate
-            pos.X += 175;
-            libraryNewDialog.AddPropertyWidget(new PropertyViewer.PropertyWidget.ButtonWidget(_graphics, pos, siz, "Generate", (PropertyViewer.PropertyWidget widg) => //GET
-            {
-                return 0;
-            }, (PropertyViewer.PropertyWidget widg) => //SET
-            {
-                //GENERATE
-
-                Brush newBrush = new Brush();
-                if (!lib_isMesh)
+                //lib_isMesh
+                lib_isMesh = false; //if true, mesh: if false, cube
+                libraryNewDialog.AddPropertyWidget(new PropertyViewer.PropertyWidget.ButtonWidget(_graphics, pos, siz, "GenMesh?", (PropertyViewer.PropertyWidget widg) => //GET
                 {
-                    newBrush.physical = VertexModelAdvanced.CreateGenericCuboid(_graphics, lib_isComplx, new Vector3(lib_x, lib_y, lib_z));
-                    if (lib_isComplx)
-                        newBrush.name = "ComplexCuboid";
+                    (widg as PropertyViewer.PropertyWidget.ButtonWidget).State = lib_isMesh;
+                    return 0;
+                }, (PropertyViewer.PropertyWidget widg) => //SET
+                {
+                    lib_isMesh = !lib_isMesh;
+                    return 0;
+                })
+                {
+                    HighText = "Mesh", //display for high
+                    LowText = "Cube", //temp for low
+                    DoText = true
+                });
+
+                //lib_isComplx
+                pos.X += 175;
+                lib_isComplx = false; //if true, complex: if false, simple
+                libraryNewDialog.AddPropertyWidget(new PropertyViewer.PropertyWidget.ButtonWidget(_graphics, pos, siz, "Complex?", (PropertyViewer.PropertyWidget widg) => //GET
+                {
+                    (widg as PropertyViewer.PropertyWidget.ButtonWidget).State = lib_isComplx;
+                    return 0;
+                }, (PropertyViewer.PropertyWidget widg) => //SET
+                {
+                    lib_isComplx = !lib_isComplx;
+                    return 0;
+                })
+                {
+                    HighText = "C", //display for high
+                    LowText = "S", //temp for low
+                    DoText = true
+                });
+
+                //generate
+                pos.X += 175;
+                libraryNewDialog.AddPropertyWidget(new PropertyViewer.PropertyWidget.ButtonWidget(_graphics, pos, siz, "Generate", (PropertyViewer.PropertyWidget widg) => //GET
+                {
+                    return 0;
+                }, (PropertyViewer.PropertyWidget widg) => //SET
+                {
+                    //GENERATE
+                    libraryNewDialog.ForceAllWidgets();
+                    Brush newBrush = new Brush();
+                    if (!lib_isMesh)
+                    {
+                        newBrush.physical = VertexModelAdvanced.CreateGenericCuboid(_graphics, lib_isComplx, new Vector3(lib_x, lib_y, lib_z));
+                        if (lib_isComplx)
+                            newBrush.name = "ComplexCuboid";
+                        else
+                            newBrush.name = "SimpleCuboid";
+                    }
                     else
-                        newBrush.name = "SimpleCuboid";
-                }
-                else
+                    {
+                        newBrush.physical = VertexModelAdvanced.CreateGenericMesh(_graphics, lib_isComplx, lib_x, lib_y, lib_z);
+                        if (lib_isComplx)
+                            newBrush.name = "ComplexMesh";
+                        else
+                            newBrush.name = "SimpleMesh";
+                    }
+
+                    library.brushes.Add(newBrush);
+
+                    //RESET VALS
+                    ResetDialogBoxes();
+                    Attention_Level = 0;
+                    return 0;
+                }));
+
+                siz.X = 200;
+                pos.X = 15;
+                pos.Y = 100;
+
+                //positions X
+                lib_x = 1;
+                libraryNewDialog.AddPropertyWidget(new PropertyWidget(_graphics, pos, siz, "Dimensions (XYZ)", (PropertyWidget widg) =>
                 {
-                    newBrush.physical = VertexModelAdvanced.CreateGenericMesh(_graphics, lib_isComplx, lib_x, lib_y, lib_z);
-                    if (lib_isComplx)
-                        newBrush.name = "ComplexMesh";
+                    widg.DisplayedText = String.Format("{0:0.00}", lib_x);
+                    return 0;
+                }, (PropertyWidget widg) =>
+                {
+                    float tmp = 0;
+                    if (float.TryParse(widg.TempText, out tmp))
+                    {
+                        lib_x = tmp;
+                    }
+                    widg.TempText = "";
+                    return 0;
+                }));
+
+                pos.X += 220;
+                //positions Y
+                lib_y = 1;
+                libraryNewDialog.AddPropertyWidget(new PropertyWidget(_graphics, pos, siz, (PropertyWidget widg) =>
+                {
+                    widg.DisplayedText = String.Format("{0:0.00}", lib_y);
+                    return 0;
+                }, (PropertyWidget widg) =>
+                {
+                    float tmp = 0;
+                    if (float.TryParse(widg.TempText, out tmp))
+                    {
+                        lib_y = tmp;
+                    }
+                    widg.TempText = "";
+                    return 0;
+                }));
+
+                pos.X += 220;
+                //positions Z
+                lib_z = 1;
+                libraryNewDialog.AddPropertyWidget(new PropertyWidget(_graphics, pos, siz, (PropertyWidget widg) =>
+                {
+                    widg.DisplayedText = String.Format("{0:0.00}", lib_z);
+                    return 0;
+                }, (PropertyWidget widg) =>
+                {
+                    float tmp = 0;
+                    if (float.TryParse(widg.TempText, out tmp))
+                    {
+                        lib_z = tmp;
+                    }
+                    widg.TempText = "";
+                    return 0;
+                }));
+            }
+
+            poly_points = new Vector3[4];
+            pos = new Vector2(15, 30);
+            siz = new Vector2(60, 30);
+            //polygon new dialog : polyNewDialog 
+            {
+                //generate
+                polygonNewDialog.AddPropertyWidget(new PropertyViewer.PropertyWidget.ButtonWidget(_graphics, pos, siz, "Generate", (PropertyViewer.PropertyWidget widg) => //GET
+                {
+                    return 0;
+                }, (PropertyViewer.PropertyWidget widg) => //SET
+                {
+                    polygonNewDialog.ForceAllWidgets();
+
+                    VertexModelAdvanced.Polygon polygon = new VertexModelAdvanced.Polygon(_graphics, (poly_Is3Side ? 3 : 4), (poly_Is3Side ? 1 : 2), PrimitiveType.TriangleStrip);
+                    VertexPositionColorTexture[] verts = new VertexPositionColorTexture[poly_Is3Side ? 3 : 4];
+                    for (int i = 0; i < verts.Length; i++)
+                    {
+                        verts[i] = new VertexPositionColorTexture(poly_points[i], new Color(poly_points[i]), Vector2.Zero);
+                    }
+
+                    if (poly_isComplx)
+                    {
+                        CurrentBrush.physical.AddComplexPoly(polygon, poly_complex_snapto);
+                    }
                     else
-                        newBrush.name = "SimpleMesh";
-                }
+                    {
+                        CurrentBrush.physical.AddBasicPoly(polygon);
+                    }
 
-                library.brushes.Add(newBrush);
-
-                //RESET VALS
-                ResetDialogBoxes();
-                Attention_Level = 0;
-                return 0;
-            }));
-
-            siz.X = 200;
-            pos.X = 15;
-            pos.Y = 100;
-
-            //positions X
-            lib_x = 1;
-            libraryNewDialog.AddPropertyWidget(new PropertyWidget(_graphics, pos, siz, "Dimensions (XYZ)", (PropertyWidget widg) =>
-            {
-                widg.DisplayedText = String.Format("{0:0.00}", lib_x);
-                return 0;
-            }, (PropertyWidget widg) =>
-            {
-                float tmp = 0;
-                if (float.TryParse(widg.TempText, out tmp))
+                    ResetDialogBoxes();
+                    Attention_Level = 0;
+                    return 0;
+                })
                 {
-                    lib_x = tmp;
-                }
-                widg.TempText = "";
-                return 0;
-            }));
+                    HighText = "Mesh", //display for high
+                    LowText = "Cube", //temp for low
+                    DoText = false
+                });
 
-            pos.X += 220;
-            //positions Y
-            lib_y = 1;
-            libraryNewDialog.AddPropertyWidget(new PropertyWidget(_graphics, pos, siz, (PropertyWidget widg) =>
-            {
-                widg.DisplayedText = String.Format("{0:0.00}", lib_y);
-                return 0;
-            }, (PropertyWidget widg) =>
-            {
-                float tmp = 0;
-                if (float.TryParse(widg.TempText, out tmp))
+                pos.X += 150;
+                //poly_isComplx
+                polygonNewDialog.AddPropertyWidget(new PropertyViewer.PropertyWidget.ButtonWidget(_graphics, pos, siz, "Complex?", (PropertyViewer.PropertyWidget widg) => //GET
                 {
-                    lib_y = tmp;
-                }
-                widg.TempText = "";
-                return 0;
-            }));
+                    (widg as PropertyWidget.ButtonWidget).State = poly_isComplx;
+                    return 0;
+                }, (PropertyViewer.PropertyWidget widg) => //SET
+                {
+                    poly_isComplx = !poly_isComplx;
+                    return 0;
+                })
+                {
+                    HighText = "Cmplx", //display for high
+                    LowText = "Smpl", //temp for low
+                    DoText = true
+                });
 
-            pos.X += 220;
-            //positions Z
-            lib_z = 1;
-            libraryNewDialog.AddPropertyWidget(new PropertyWidget(_graphics, pos, siz, (PropertyWidget widg) =>
-            {
-                widg.DisplayedText = String.Format("{0:0.00}", lib_z);
-                return 0;
-            }, (PropertyWidget widg) =>
-            {
-                float tmp = 0;
-                if (float.TryParse(widg.TempText, out tmp))
+                pos.X += 150;
+                //poly_is3side
+                polygonNewDialog.AddPropertyWidget(new PropertyViewer.PropertyWidget.ButtonWidget(_graphics, pos, siz, "points?", (PropertyViewer.PropertyWidget widg) => //GET
                 {
-                    lib_z = tmp;
+                    (widg as PropertyWidget.ButtonWidget).State = poly_Is3Side;
+                    return 0;
+                }, (PropertyViewer.PropertyWidget widg) => //SET
+                {
+                    poly_Is3Side = !poly_Is3Side;
+                    return 0;
+                })
+                {
+                    HighText = "4", //display for high
+                    LowText = "3", //temp for low
+                    DoText = true
+                });
+
+                pos.X -= 300;
+                pos.Y += 80;
+                siz.X = 100;
+                //poly_complex_snapto
+                polygonNewDialog.AddPropertyWidget(new PropertyWidget(_graphics, pos, siz, "Snap", (PropertyViewer.PropertyWidget widg) => //GET
+                {
+                    widg.DisplayedText = String.Format("{0:0.00}", poly_complex_snapto);
+                    return 0;
+                }, (PropertyViewer.PropertyWidget widg) => //SET
+                {
+                    float tmp = 0;
+                    if (float.TryParse(widg.TempText, out tmp))
+                    {
+                        poly_complex_snapto = tmp; 
+                    }
+                    return 0;
+                }));
+
+                for (int i = 0; i < poly_points.Length; i++)
+                {
+                    pos.Y += 80;
+                    pos.X = 15;
+
+                    //x with header for this point
+                    polygonNewDialog.AddPropertyWidget(new PropertyWidget(_graphics, pos, siz, $"Point {i}", (PropertyViewer.PropertyWidget widg) => //GET
+                    {
+                        widg.DisplayedText = String.Format("{0:0.00}", poly_points[widg.UsableValue].X);
+                        return 0;
+                    }, (PropertyViewer.PropertyWidget widg) => //SET
+                    {
+                        float tmp = 0;
+                        if (float.TryParse(widg.TempText, out tmp))
+                        {
+                            poly_points[widg.UsableValue].X = tmp;
+                        }
+                        return 0;
+                    })
+                    {
+                        UsableValue = i
+                    });
+
+                    //y no header
+                    pos.X += 140;
+                    polygonNewDialog.AddPropertyWidget(new PropertyWidget(_graphics, pos, siz, (PropertyViewer.PropertyWidget widg) => //GET
+                    {
+                        widg.DisplayedText = String.Format("{0:0.00}", poly_points[widg.UsableValue].Y);
+                        return 0;
+                    }, (PropertyViewer.PropertyWidget widg) => //SET
+                    {
+                        float tmp = 0;
+                        if (float.TryParse(widg.TempText, out tmp))
+                        {
+                            poly_points[widg.UsableValue].Y = tmp;
+                        }
+                        return 0;
+                    })
+                    {
+                        UsableValue = i
+                    });
+
+                    //z no header
+                    pos.X += 140;
+                    polygonNewDialog.AddPropertyWidget(new PropertyWidget(_graphics, pos, siz, (PropertyViewer.PropertyWidget widg) => //GET
+                    {
+                        widg.DisplayedText = String.Format("{0:0.00}", poly_points[widg.UsableValue].Z);
+                        return 0;
+                    }, (PropertyViewer.PropertyWidget widg) => //SET
+                    {
+                        float tmp = 0;
+                        if (float.TryParse(widg.TempText, out tmp))
+                        {
+                            poly_points[widg.UsableValue].Z = tmp;
+                        }
+                        return 0;
+                    })
+                    {
+                        UsableValue = i
+                    });
                 }
-                widg.TempText = "";
-                return 0;
-            }));
+            }
+
+            ResetDialogBoxes();
         }
         private void ResetDialogBoxes()
         {
@@ -2613,6 +3427,14 @@ namespace core.src
             lib_x = 1;
             lib_y = 1;
             lib_z = 1;
+
+            poly_isComplx = false;
+            poly_complex_snapto = 0.1f;
+            poly_Is3Side = true;
+            for (int i = 0; i < 4; i++)
+            {
+                poly_points[i] = Vector3.Zero;
+            }
         }
 
         public override void Destroy()
@@ -2627,7 +3449,7 @@ namespace core.src
             libraryNewDialog.Destroy();
             polygonNewDialog.Destroy();
             circleTex.Dispose();
-            for (int i = 0; i < xyzPlanes.Length; i++)
+            for (int i = 1; i < xyzPlanes.Length; i++)
             {
                 xyzPlanes[i].Destroy();
             }
@@ -2719,9 +3541,10 @@ namespace core.src
                         Attention_Level = 1;
                 }
 
-                //brush contents delete/create polys
+                
                 if (brushContentsList.ButtonActive)
                 {
+                    //brush contents delete/create polys
                     if (brushContentsList.curIndex != -1 && (Input.IsKeyDown(Keys.LeftControl) || Input.IsKeyDown(Keys.RightControl)) && Input.IsKeyPressed(Keys.Delete)) //deletes
                     {
                         CurrentBrush.physical.RemovePoly(brushContentsList.curIndex);
@@ -2746,6 +3569,10 @@ namespace core.src
                 if (Attention_Level == 1) //libraryNewDialog
                 {
                     libraryNewDialog.Poll();
+                }
+                else if (Attention_Level == 2) //polyNewDialog
+                {
+                    polygonNewDialog.Poll();
                 }
             }
         }
@@ -2774,6 +3601,10 @@ namespace core.src
             {
                 libraryNewDialog.Render(false);
             }
+            else if (Attention_Level == 2)
+            {
+                polygonNewDialog.Render(false);
+            }
 
             _sprites.End();
         }
@@ -2781,12 +3612,10 @@ namespace core.src
         //DEFAULT PERSPECTIVE
         float d_Distance = 5;
         bool rendersides = true;
+        
         public override void DefaultProcess(PerspectiveViewerWindow window)
         {
-            int scroll = -Input.GetMouseWheelDeltaNormal();
-
-            d_Distance += (float)(scroll / Program.Game.FrameRate) * 10;
-            window.Camera.Position = window.Camera.TargetAngle * -d_Distance;
+            base.DefaultProcess(window);
 
             if (Input.IsKeyPressed(Keys.P))
             {
@@ -2807,7 +3636,9 @@ namespace core.src
             if (CurrentBrush != null)
             {
                 Vector3 temp = CurrentBrush.physical.position;
+                Vector2 tmpr = CurrentBrush.physical.profile.ang2d;
                 CurrentBrush.physical.position = Vector3.Zero;
+                CurrentBrush.physical.profile.ang2d = Vector2.Zero;
                 
                 if (brushContentsList.curIndex != -1 && !rendersides)
                 {
@@ -2819,6 +3650,7 @@ namespace core.src
                 }
 
                 CurrentBrush.physical.position = temp;
+                CurrentBrush.physical.profile.ang2d = tmpr;
             }
 
             if (renderPlanes)
@@ -2843,6 +3675,8 @@ namespace core.src
         public override void OrthoProcess(PerspectiveViewerWindow window, WindowContext context)
         {
             base.OrthoProcess(window, context);
+
+            if (Attention_Level != ATTENTION_UNFOCUSED) return;
 
             if (Input.IsKeyPressed(Keys.R))
             {
@@ -2961,7 +3795,9 @@ namespace core.src
                 window.Camera.SetupDraw();
 
                 Vector3 temp = CurrentBrush.physical.position;
+                Vector2 tmpr = CurrentBrush.physical.profile.ang2d;
                 CurrentBrush.physical.position = Vector3.Zero;
+                CurrentBrush.physical.profile.ang2d = Vector2.Zero;
 
                 if (rendersides)
                     CurrentBrush.physical.Draw(window.Camera);
@@ -3048,6 +3884,7 @@ namespace core.src
                 
                 _sprites.End();
                 CurrentBrush.physical.position = temp;
+                CurrentBrush.physical.profile.ang2d = tmpr;
             }
 
             base.OrthoRender(window, context);
